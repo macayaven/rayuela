@@ -67,7 +67,7 @@ If the Spark is not on the same local network, use Tailscale (there is an offici
 ### Dockerfile
 
 ```dockerfile
-FROM nvcr.io/nvidia/pytorch:24.01-py3
+FROM nvcr.io/nvidia/pytorch:26.02-py3
 
 WORKDIR /workspace/rayuela
 

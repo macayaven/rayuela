@@ -1,0 +1,61 @@
+# Project Rayuela — Two-service architecture
+# 1. rayuela: analysis environment (embeddings, TDA, visualization, JupyterLab)
+# 2. vllm: NVIDIA's optimized LLM server (Llama 3.3 70B for semantic extraction)
+#
+# Usage:
+#   docker compose up rayuela          # analysis only (most sessions)
+#   docker compose up vllm             # start LLM server when needed for Scale B
+#   docker compose up                  # both services
+
+services:
+  rayuela:
+    build: .
+    image: rayuela:latest
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    shm_size: "32g"
+    ports:
+      - "8888:8888"   # JupyterLab
+    volumes:
+      - ./data:/workspace/rayuela/data
+      - ./notebooks:/workspace/rayuela/notebooks
+      - ./outputs:/workspace/rayuela/outputs
+      - ./src:/workspace/rayuela/src
+      - ./prompts:/workspace/rayuela/prompts
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      # Tell analysis code where to find the vLLM API
+      - VLLM_API_BASE=http://vllm:8000/v1
+    stdin_open: true
+    tty: true
+
+  vllm:
+    image: nvcr.io/nvidia/vllm:26.01-py3
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    shm_size: "32g"
+    ports:
+      - "8000:8000"   # OpenAI-compatible API
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    # Default: Llama 3.3 70B (fits in single Spark, 128 GB UMA)
+    # Change model or add flags as needed
+    command: >
+      vllm serve meta-llama/Llama-3.3-70B-Instruct
+      --max-model-len 4096
+      --gpu-memory-utilization 0.85
+    profiles:
+      - llm  # Only starts when explicitly requested: docker compose --profile llm up

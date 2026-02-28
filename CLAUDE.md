@@ -29,27 +29,26 @@ These rules override default Claude Code behavior for this project:
 ## Build & Run Commands
 
 ```bash
-# Build the container
-docker build -t rayuela:latest .
+# Build the analysis container
+docker compose build rayuela
 
-# Run with GPU access
-docker run --gpus all --runtime nvidia \
-    --shm-size=32g \
-    -p 8888:8888 \
-    -p 8000:8000 \
-    -v $(pwd)/data:/workspace/rayuela/data \
-    -v $(pwd)/notebooks:/workspace/rayuela/notebooks \
-    -v $(pwd)/outputs:/workspace/rayuela/outputs \
-    -v $HOME/.cache/huggingface:/root/.cache/huggingface \
-    rayuela:latest
+# Start analysis environment (JupyterLab on port 8888)
+docker compose up rayuela
 
-# Check memory (NOT nvidia-smi)
+# Start vLLM server when needed for Scale B (port 8000)
+docker compose --profile llm up vllm
+
+# Run a one-off command inside the analysis container
+docker compose run --rm rayuela python my_script.py
+
+# Check memory (NOT nvidia-smi — UMA reports "Not Supported")
 free -h
 ```
 
-- **JupyterLab**: port 8888
-- **vLLM API**: port 8000
+- **JupyterLab**: port 8888 (rayuela container)
+- **vLLM API**: port 8000 (separate NVIDIA container, `nvcr.io/nvidia/vllm:26.01-py3`)
 - **`--shm-size=32g`** is required because PyTorch DataLoader uses shared memory for multiprocessing; without it, large batch operations crash with "bus error."
+- vLLM uses Docker Compose profile `llm` — it only starts when explicitly requested to avoid consuming ~65 GB for the 70B model
 
 ## Architecture
 
@@ -94,11 +93,11 @@ Results are validated against: *62: Modelo para armar* (Cortázar, non-linear bu
 
 ## Key Dependencies
 
-Base image: `nvcr.io/nvidia/pytorch:24.01-py3` (NGC, ARM64-compatible)
+Base image: `nvcr.io/nvidia/pytorch:26.02-py3` (NGC, ARM64-compatible)
 
-Core: vllm, sentence-transformers, transformers, accelerate
+Core: sentence-transformers, transformers, accelerate, openai (vLLM runs separately)
 Embeddings/DR: umap-learn, scikit-learn, openTSNE
-TDA: ripser, persim, giotto-tda
+TDA: ripser, persim (giotto-tda deferred — no ARM64 wheel yet)
 Visualization: plotly, matplotlib, seaborn, ipywidgets
 Graph/NLP: networkx, scipy, spacy (with `es_core_news_lg` model)
 
