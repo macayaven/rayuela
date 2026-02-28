@@ -1,0 +1,43 @@
+# Data files (too large for git, and potentially copyrighted text)
+data/*.json
+data/**/*.npy
+
+# Outputs (reproducible from code)
+outputs/
+*.npy
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_metadata/
+
+# Environment
+.env
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+
+# HuggingFace cache
+.cache/
+
+# Claude Code local settings
+.claude/
