@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f ARTICLE_LOG.md ] && ! git diff --name-only HEAD 2>/dev/null | grep -q ARTICLE_LOG.md; then echo '{\"decision\": \"block\", \"reason\": \"ARTICLE_LOG.md has not been updated this session. Append a dated entry with: what happened, key finding/decision, 1-2 sentences of article-ready prose, and any visualization paths. Then you may stop.\"}'; fi",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

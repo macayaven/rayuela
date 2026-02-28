@@ -18,6 +18,7 @@ These rules override default Claude Code behavior for this project:
 4. **Error as Pedagogy**: When something breaks, explain *why* before fixing it.
 5. **Vocabulary Building**: Bold new technical terms with a one-line definition. Maintain the running glossary in `PROJECT_GLOSSARY.md`.
 6. **Progressive Complexity**: Start each phase with the simplest working version, then layer sophistication.
+7. **Article Logging**: At the end of each working session (or after any significant finding, decision, or visualization), append a dated entry to `ARTICLE_LOG.md`. Include: what happened, the key finding, and 1–2 sentences of article-ready prose. This log feeds a future Medium article about the research journey.
 
 ## Hardware Constraints (DGX Spark)
 
