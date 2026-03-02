@@ -29,16 +29,20 @@ services:
       - ./src:/workspace/rayuela/src
       - ./prompts:/workspace/rayuela/prompts
       - ~/.cache/huggingface:/root/.cache/huggingface
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
-      # Tell analysis code where to find the vLLM API
-      - VLLM_API_BASE=http://vllm:8000/v1
+      # vLLM runs on host network, so reach it via host gateway
+      - VLLM_API_BASE=http://host.docker.internal:8000/v1
     stdin_open: true
     tty: true
 
   vllm:
-    image: nvcr.io/nvidia/vllm:26.01-py3
+    image: vllm/vllm-openai:cu130-nightly-aarch64   # CUDA 13.0 for Blackwell/DGX Spark + Qwen 3.5
     runtime: nvidia
+    network_mode: host          # Use host networking (fixes DNS, exposes port 8000 directly)
+    ipc: host                   # Shared memory for NCCL/PyTorch (equivalent to --ipc=host)
     deploy:
       resources:
         reservations:
@@ -47,15 +51,22 @@ services:
               count: all
               capabilities: [gpu]
     shm_size: "32g"
-    ports:
-      - "8000:8000"   # OpenAI-compatible API
     volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    # Default: Llama 3.3 70B (fits in single Spark, 128 GB UMA)
-    # Change model or add flags as needed
+      - vllm-models:/root/.cache/huggingface   # shared volume with existing cached models
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+    # Qwen 3.5 27B dense: FP8 (~27 GB), text-only mode (skip vision encoder)
+    # Entrypoint is ["vllm", "serve"], so command starts with model name
+    # Flags per official docs: https://docs.vllm.ai/projects/recipes/en/latest/Qwen/Qwen3.5.html
     command: >
-      vllm serve meta-llama/Llama-3.3-70B-Instruct
-      --max-model-len 4096
+      Qwen/Qwen3.5-27B-FP8
+      --max-model-len 24576
       --gpu-memory-utilization 0.85
+      --language-model-only
+      --enable-prefix-caching
     profiles:
       - llm  # Only starts when explicitly requested: docker compose --profile llm up
+
+volumes:
+  vllm-models:
+    external: true  # pre-existing volume with cached models

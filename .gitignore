@@ -1,6 +1,12 @@
-# Data files (too large for git, and potentially copyrighted text)
+# Data files (copyrighted text — never version)
+data/*.epub
+data/*.txt
 data/*.json
 data/**/*.npy
+data/calibration/
+
+# Local prompt versions with embedded copyrighted text
+prompts/*_local.txt
 
 # Outputs (reproducible from code)
 outputs/
