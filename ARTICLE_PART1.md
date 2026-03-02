@@ -113,7 +113,7 @@ The AI is a microscope, not a judge. It reveals structure that was always there 
 
 *This is Part 1 of a series. Part 2 will examine the methodology in depth: the 20-dimensional scoring rubric, the sensitivity analysis between two independent model runs, and what the AI's own "evidence" strings reveal about how it reads literature. Part 3 will explore what happens when you computationally remix Rayuela — substituting the cultural furniture of 1960s Paris with other times and places while preserving the novel's narrative DNA.*
 
-*All interactive visualizations are available at [carlos-crespo.com/rayuela](https://carlos-crespo.com/rayuela). Code at [github.com/macayaven/rayuela](https://github.com/macayaven/rayuela).*
+*All interactive visualizations are available at [carloscrespomacaya.com/rayuela](https://carloscrespomacaya.com/rayuela). Code at [github.com/macayaven/rayuela](https://github.com/macayaven/rayuela).*
 
 ---
 
