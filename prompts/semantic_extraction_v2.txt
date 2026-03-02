@@ -1,0 +1,137 @@
+You are a literary analyst specializing in Latin American fiction, particularly the work of Julio Cortázar. You are reading chapters from the novel Rayuela (Hopscotch, 1963) in the original Spanish.
+
+For each chapter provided, score it on exactly 20 semantic dimensions using an integer scale of 1 to 10. For each score, provide a brief evidence string (one sentence) citing the specific textual element that justifies the score.
+
+Return ONLY valid JSON matching the exact format shown after the calibration examples. No commentary, no markdown, no explanation — just the JSON object.
+
+DIMENSIONS AND RUBRIC:
+
+1. existential_questioning
+   1 = No philosophical content
+   10 = Deep existential or metaphysical inquiry
+
+2. art_and_aesthetics
+   1 = No reference to art, music, or literature
+   10 = Dominated by artistic or aesthetic discussion
+
+3. everyday_mundanity
+   1 = Abstract, detached from daily life
+   10 = Grounded in concrete daily routines and objects
+
+4. death_and_mortality
+   1 = No mention of death, illness, or endings
+   10 = Death is central theme or presence
+
+5. love_and_desire
+   1 = No romantic or erotic content
+   10 = Love, desire, or romantic loss dominates
+
+6. emotional_intensity
+   1 = Flat, neutral, detached tone
+   10 = Emotionally overwhelming, raw
+
+7. humor_and_irony
+   1 = Completely serious
+   10 = Pervasive humor, satire, or ironic play
+
+8. melancholy_and_nostalgia
+   1 = No sadness or longing
+   10 = Suffused with loss, memory, or longing
+
+9. tension_and_anxiety
+   1 = Calm, settled
+   10 = Urgent tension, anxiety, or unease
+
+10. oliveira_centrality
+    1 = Oliveira absent or marginal
+    10 = Oliveira's perspective dominates entirely
+    (In calibration examples: the central male consciousness of the novel)
+
+11. la_maga_presence
+    1 = La Maga absent and unmentioned
+    10 = La Maga actively present or central focus
+    (In calibration examples: the primary figure of desire or romantic counterpart)
+
+12. character_density
+    1 = Solitary scene or monologue, 0-1 characters
+    10 = Crowded scene, many characters interacting
+
+13. interpersonal_conflict
+    1 = Harmony or isolation (no friction)
+    10 = Open confrontation, argument, or rupture
+
+14. interiority
+    1 = Entirely external action or dialogue
+    10 = Deep internal monologue, stream of consciousness
+
+15. dialogue_density
+    1 = No dialogue
+    10 = Mostly or entirely dialogue
+
+16. metafiction
+    1 = Pure narrative, no meta-literary layer
+    10 = Dominated by literary theory or writing about writing
+
+17. temporal_clarity
+    1 = Clear, linear timeline
+    10 = Fragmented, ambiguous, or non-linear time
+
+18. spatial_grounding
+    1 = Abstract, no clear physical setting
+    10 = Vivid, concrete, specific location
+
+19. language_experimentation
+    1 = Standard literary Spanish
+    10 = Heavy code-switching, neologisms, or invented language
+
+20. intertextual_density
+    1 = No references to other works
+    10 = Dense with literary, musical, or philosophical allusions
+
+SCORING GUIDELINES:
+- Use the full 1-10 range. Not everything is a 5.
+- Score what the TEXT contains, not what you know about the novel from outside this chapter.
+- If a chapter is written in invented language (e.g., Glíglico), score based on what you can infer from context and sound, not literal meaning.
+- For very short chapters (under 50 words), score based on what is present; leave no dimension blank.
+- Evidence should cite a specific element from the text: a character action, a described object, a phrase, a structural choice. Keep it to one concise sentence.
+
+CALIBRATION EXAMPLES:
+
+The following examples are from OTHER Cortázar novels (not Rayuela). They demonstrate how to apply the rubric consistently. Study the relationship between the text and the scores given. These examples anchor the extremes of the scoring space — apply the same careful, independent reading to each Rayuela chapter.
+
+--- Example 1: 62: Modelo para armar (1968), opening scene — "château saignant" restaurant meditation ---
+
+TEXT:
+[COPYRIGHTED — See data/calibration/62modelo_opening_trimmed.txt]
+Source: 62: Modelo para armar by Julio Cortázar (1968), opening pages.
+Content: Juan sits alone in Restaurant Polidor on Christmas Eve. A fat diner orders a "château saignant" (rare steak), which Juan's translator mind mishears as "castillo sangriento" (bloody castle), triggering an associative chain involving a book, the Countess, Hélène's image, and a bottle of Sylvaner. Pure stream-of-consciousness interior monologue. ~800 words.
+
+EXPECTED SCORES:
+{"chapter": "calibration_62_opening", "scores": {"existential_questioning": {"score": 8, "evidence": "Juan interrogates the meaning of coincidences in a chain of questions, seeking 'la oscura certidumbre de que por ahí empieza un camino.'"}, "art_and_aesthetics": {"score": 3, "evidence": "An NRF book is purchased and referenced as part of the associative chain, but art is not a sustained topic."}, "everyday_mundanity": {"score": 4, "evidence": "Restaurant setting with wine and hors d'oeuvres, but every mundane detail is sublimated into philosophical meditation."}, "death_and_mortality": {"score": 2, "evidence": "The 'castillo sangriento' pun evokes blood symbolically, but death is not actually present as a theme."}, "love_and_desire": {"score": 3, "evidence": "Hélène's image recurs in the associative constellation but as one element among many, not as romantic focus."}, "emotional_intensity": {"score": 5, "evidence": "Intellectual urgency and 'desasosiego,' but the tone is more cerebral than emotionally raw."}, "humor_and_irony": {"score": 4, "evidence": "Self-deprecating irony in 'tengo una especie de genio para festejar las nochebuenas' and the saignant/sanglant pun."}, "melancholy_and_nostalgia": {"score": 4, "evidence": "Christmas Eve solitude and the memory of the Condesa in Vienna lend a melancholic undertone without dominating."}, "tension_and_anxiety": {"score": 5, "evidence": "A sense of something 'amenazante' in the associative chain, but controlled intellectual disquiet rather than panic."}, "oliveira_centrality": {"score": 9, "evidence": "Juan's first-person consciousness dominates entirely; no other character's perspective is present."}, "la_maga_presence": {"score": 3, "evidence": "Hélène appears as a recurring image within Juan's mental constellation but does not actively participate."}, "character_density": {"score": 2, "evidence": "Solo scene: Juan sits alone; the 'comensal gordo' is a faceless background presence heard through the mirror."}, "interpersonal_conflict": {"score": 1, "evidence": "No interpersonal interaction occurs; the entire passage is an internal meditation."}, "interiority": {"score": 10, "evidence": "Pure stream-of-consciousness: the passage unfolds entirely within Juan's mind as he processes the associative coágulo."}, "dialogue_density": {"score": 1, "evidence": "One indirect quote from the fat diner; otherwise unbroken interior narration."}, "metafiction": {"score": 5, "evidence": "Juan reflects on the impossibility of translating experience into language and the futility of analysis."}, "temporal_clarity": {"score": 6, "evidence": "Present-time restaurant frame interlaced with memories of the Condesa in Vienna, creating moderate temporal layering."}, "spatial_grounding": {"score": 8, "evidence": "Precisely located in the Restaurant Polidor on boulevard Saint-Germain, with the mirror reflecting the dining room."}, "language_experimentation": {"score": 3, "evidence": "Standard literary Spanish with embedded French phrases, typical bilingualism but no formal experimentation."}, "intertextual_density": {"score": 6, "evidence": "References to Countess Báthory via the 'castillo sangriento' pun, an NRF book, and the self-conscious 'modelo para armar' project."}}}
+
+--- Example 2: Un tal Lucas (1979), "Lucas, sus pudores" — bathroom anxiety at a dinner party ---
+
+TEXT:
+[COPYRIGHTED — See data/calibration/lucas_sus_pudores.txt]
+Source: Un tal Lucas by Julio Cortázar (1979), chapter "Lucas, sus pudores".
+Content: Lucas dreads using the bathroom during a dinner party in a small Buenos Aires apartment, where the bathroom is three meters from the living room. Escalating comedy about his futile strategies to muffle sounds. References Dante's Inferno and an anonymous copla. Pure humor, grounded in bodily mundanity. ~500 words.
+
+EXPECTED SCORES:
+{"chapter": "calibration_lucas_pudores", "scores": {"existential_questioning": {"score": 2, "evidence": "No philosophical content; the piece operates entirely in the register of embodied social anxiety."}, "art_and_aesthetics": {"score": 1, "evidence": "No reference to art, music, or aesthetic discussion within the narrative."}, "everyday_mundanity": {"score": 10, "evidence": "The entire piece is about the most concrete bodily reality — flatulence in a small apartment bathroom during a dinner party."}, "death_and_mortality": {"score": 1, "evidence": "No mention of death, illness, or endings."}, "love_and_desire": {"score": 1, "evidence": "No romantic or erotic content."}, "emotional_intensity": {"score": 4, "evidence": "Genuine social anxiety and 'horror' at the prospect of embarrassment, but the comic tone prevents raw emotional impact."}, "humor_and_irony": {"score": 10, "evidence": "Sustained, escalating comedy from start to finish, built on precise physical description of futile silencing strategies."}, "melancholy_and_nostalgia": {"score": 1, "evidence": "No sadness, loss, or longing present."}, "tension_and_anxiety": {"score": 6, "evidence": "Lucas's anxiety is genuine and physical ('tenso y angustiado'), though the comic register defuses the tension."}, "oliveira_centrality": {"score": 8, "evidence": "Lucas's perspective and internal experience dominate the entire piece."}, "la_maga_presence": {"score": 1, "evidence": "No romantic counterpart or figure of desire present."}, "character_density": {"score": 4, "evidence": "Party setting implies multiple guests; the señora de Broggi and doctor Berenstein are named but peripheral."}, "interpersonal_conflict": {"score": 2, "evidence": "Social discomfort but no confrontation; the conflict is between Lucas and his own body."}, "interiority": {"score": 7, "evidence": "Lucas's internal dread dominates, though the narrator also observes the scene from an external perspective."}, "dialogue_density": {"score": 1, "evidence": "No dialogue; the entire piece is narration with one quoted anonymous verse."}, "metafiction": {"score": 1, "evidence": "Pure narrative with no meta-literary self-awareness or commentary on writing."}, "temporal_clarity": {"score": 2, "evidence": "Clear iterative present describing a recurring social situation with straightforward progression."}, "spatial_grounding": {"score": 7, "evidence": "The small apartment, bathroom three meters away, plastic shower curtain, and toothbrush holders create vivid spatial detail."}, "language_experimentation": {"score": 2, "evidence": "Standard literary Spanish with Argentine register; no formal experimentation despite playful vocabulary."}, "intertextual_density": {"score": 4, "evidence": "References Dante's Inferno ('avevan dal cul fatto trombetta') and an anonymous Spanish copla about defecation."}}}
+
+--- Example 3: 62: Modelo para armar (1968), Hélène confrontation scene — the doll and the confession ---
+
+TEXT:
+[COPYRIGHTED — See data/calibration/62modelo_helene_trimmed.txt]
+Source: 62: Modelo para armar by Julio Cortázar (1968), pp. 241-242.
+Content: Juan confronts Hélène about a doll he sent her. She keeps it in a closet, takes it out at night. He opens the closet; the doll's body splits open on a sheet folded like an operating table. Physical confrontation — he grabs her shoulders, she bites her lip. The narration shifts from Juan's perspective to Hélène's first person. She confesses: "No es por ti que la guardo." Emotional devastation, death symbolism, impossible love. ~800 words.
+
+EXPECTED SCORES:
+{"chapter": "calibration_62_helene", "scores": {"existential_questioning": {"score": 5, "evidence": "Questions of fate and determinism: 'tenemos que pensar que nos usan, que servimos vaya a saber para qué.'"}, "art_and_aesthetics": {"score": 1, "evidence": "No reference to art, music, or literature; the scene is entirely interpersonal."}, "everyday_mundanity": {"score": 1, "evidence": "The confrontation is an extraordinary, singular event — no grounding in daily routine."}, "death_and_mortality": {"score": 9, "evidence": "Death is central: Hélène confesses 'yo te maté, Juan' and the doll's split body evokes a death she cannot undo."}, "love_and_desire": {"score": 7, "evidence": "Impossible love pervades: Juan sent the doll to Hélène, and the confrontation orbits an unresolvable intimacy."}, "emotional_intensity": {"score": 10, "evidence": "Overwhelming: Juan shakes Hélène, she bites her lip to stifle a scream, the doll's body splits open on the sheet."}, "humor_and_irony": {"score": 1, "evidence": "No humor or irony; the tone is relentlessly serious and anguished."}, "melancholy_and_nostalgia": {"score": 6, "evidence": "Deep irreversible loss: 'perdidos, desencontrados como nunca,' and the weight of accumulated guilt."}, "tension_and_anxiety": {"score": 9, "evidence": "Escalating confrontation from the closet opening to the physical violence to the whispered confession of murder."}, "oliveira_centrality": {"score": 6, "evidence": "Juan's perspective dominates early, but Hélène's first-person voice ('su voz me llegó,' 'le dije') progressively takes over."}, "la_maga_presence": {"score": 7, "evidence": "Hélène is the primary figure of desire, actively present and central to every moment of the confrontation."}, "character_density": {"score": 3, "evidence": "Intimate two-person scene: Juan and Hélène alone, with a dead patient mentioned only in Hélène's memory."}, "interpersonal_conflict": {"score": 9, "evidence": "Open confrontation: Juan accuses Hélène of revenge — 'siempre te vengaste de alguna manera' — and physically shakes her."}, "interiority": {"score": 7, "evidence": "Deep internal states revealed through perspective alternation, mediated through dialogue and physical action."}, "dialogue_density": {"score": 6, "evidence": "Sustained dialogue between Juan and Hélène drives the scene, alternating with interior narration."}, "metafiction": {"score": 2, "evidence": "The concept of 'paredro' and the Actaeon myth are mentioned, but the scene does not engage in self-conscious writing about writing."}, "temporal_clarity": {"score": 5, "evidence": "Present confrontation intercut with memories of the tramway and the doll's arrival; perspective shifts create mild temporal ambiguity."}, "spatial_grounding": {"score": 6, "evidence": "Hélène's apartment with its placard, the doll on a folded sheet like an operating table, cigarettes and whisky."}, "language_experimentation": {"score": 2, "evidence": "Standard literary Spanish with no formal experimentation."}, "intertextual_density": {"score": 3, "evidence": "Mythological reference to Actaeon and Diana, but otherwise not densely allusive."}}}
+
+END OF CALIBRATION EXAMPLES.
+
+Now score the following Rayuela chapter using the same rubric and calibration standard demonstrated above.
+
+OUTPUT FORMAT (return ONLY this JSON, nothing else):
+{"chapter": <chapter_number>, "scores": {"existential_questioning": {"score": <1-10>, "evidence": "<one sentence>"}, "art_and_aesthetics": {"score": <1-10>, "evidence": "<one sentence>"}, "everyday_mundanity": {"score": <1-10>, "evidence": "<one sentence>"}, "death_and_mortality": {"score": <1-10>, "evidence": "<one sentence>"}, "love_and_desire": {"score": <1-10>, "evidence": "<one sentence>"}, "emotional_intensity": {"score": <1-10>, "evidence": "<one sentence>"}, "humor_and_irony": {"score": <1-10>, "evidence": "<one sentence>"}, "melancholy_and_nostalgia": {"score": <1-10>, "evidence": "<one sentence>"}, "tension_and_anxiety": {"score": <1-10>, "evidence": "<one sentence>"}, "oliveira_centrality": {"score": <1-10>, "evidence": "<one sentence>"}, "la_maga_presence": {"score": <1-10>, "evidence": "<one sentence>"}, "character_density": {"score": <1-10>, "evidence": "<one sentence>"}, "interpersonal_conflict": {"score": <1-10>, "evidence": "<one sentence>"}, "interiority": {"score": <1-10>, "evidence": "<one sentence>"}, "dialogue_density": {"score": <1-10>, "evidence": "<one sentence>"}, "metafiction": {"score": <1-10>, "evidence": "<one sentence>"}, "temporal_clarity": {"score": <1-10>, "evidence": "<one sentence>"}, "spatial_grounding": {"score": <1-10>, "evidence": "<one sentence>"}, "language_experimentation": {"score": <1-10>, "evidence": "<one sentence>"}, "intertextual_density": {"score": <1-10>, "evidence": "<one sentence>"}}}
