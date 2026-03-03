@@ -29,87 +29,20 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
 
+from project_config import (
+    PROJECT_ROOT, OUTPUT_FIGURES_DIR, NARRATIVE_DNA_PATH,
+    TABLERO, LINEAR_ORDER, SECTION_COLORS, SECTION_SHORT,
+    DIM_GROUPS, DIMS_ORDERED, DIM_LABELS,
+    DistanceMetric, RNG_SEED, N_PERMS,
+    z_score as compute_z_score, z_standardize,
+    z_standardize_scores_dict, get_all_chapters,
+)
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = PROJECT_ROOT / "outputs" / "figures"
-
-# Cortázar's Tablero de Dirección (hopscotch reading order)
-TABLERO = [
-    73, 1, 2, 116, 3, 84, 4, 71, 5, 81, 74, 6, 7, 8, 93, 68, 9, 104,
-    10, 65, 11, 136, 12, 106, 13, 115, 14, 114, 117, 15, 120, 16, 137,
-    17, 97, 18, 153, 19, 90, 20, 126, 21, 79, 22, 62, 23, 124, 128, 24,
-    134, 25, 141, 60, 26, 109, 27, 28, 130, 151, 152, 131, 29, 139, 30,
-    138, 31, 32, 132, 33, 140, 34, 135, 35, 105, 36, 63, 37, 98, 38,
-    102, 39, 113, 40, 120, 41, 100, 42, 76, 43, 44, 108, 45, 69, 46,
-    101, 47, 110, 48, 111, 49, 118, 50, 119, 51, 69, 52, 89, 53, 66,
-    149, 54, 129, 139, 133, 140, 138, 127, 56, 135, 63, 88, 72, 77, 131,
-    58, 131,
-]
-
-LINEAR_ORDER = list(range(1, 57))
-
-SECTION_COLORS = {
-    "Del lado de allá": "#2196F3",
-    "Del lado de acá": "#FF9800",
-    "De otros lados (Capítulos prescindibles)": "#9C27B0",
-}
-SECTION_SHORT = {
-    "Del lado de allá": "Allá (Paris)",
-    "Del lado de acá": "Acá (Buenos Aires)",
-    "De otros lados (Capítulos prescindibles)": "Otros lados (Expendable)",
-}
-
-# Dimension grouping for visualization
-DIM_GROUPS = {
-    "Thematic": [
-        "existential_questioning", "art_and_aesthetics",
-        "everyday_mundanity", "death_and_mortality", "love_and_desire",
-    ],
-    "Emotional": [
-        "emotional_intensity", "humor_and_irony",
-        "melancholy_and_nostalgia", "tension_and_anxiety",
-    ],
-    "Character": [
-        "oliveira_centrality", "la_maga_presence",
-        "character_density", "interpersonal_conflict",
-    ],
-    "Narrative": [
-        "interiority", "dialogue_density", "metafiction", "temporal_clarity",
-    ],
-    "Formal": [
-        "spatial_grounding", "language_experimentation", "intertextual_density",
-    ],
-}
-
-# Flat ordered list matching the grouping
-DIMS_ORDERED = [d for dims in DIM_GROUPS.values() for d in dims]
-
-# Pretty display names for dimensions
-DIM_LABELS = {
-    "existential_questioning": "Existential",
-    "art_and_aesthetics": "Art/Aesthetics",
-    "everyday_mundanity": "Mundanity",
-    "death_and_mortality": "Death",
-    "love_and_desire": "Love/Desire",
-    "emotional_intensity": "Emotion",
-    "humor_and_irony": "Humor/Irony",
-    "melancholy_and_nostalgia": "Melancholy",
-    "tension_and_anxiety": "Tension",
-    "oliveira_centrality": "Oliveira",
-    "la_maga_presence": "La Maga",
-    "character_density": "Characters",
-    "interpersonal_conflict": "Conflict",
-    "interiority": "Interiority",
-    "dialogue_density": "Dialogue",
-    "metafiction": "Metafiction",
-    "temporal_clarity": "Temporal frag.",
-    "spatial_grounding": "Spatial",
-    "language_experimentation": "Lang. experiment",
-    "intertextual_density": "Intertextual",
-}
+OUTPUT_DIR = OUTPUT_FIGURES_DIR
 
 
 # ---------------------------------------------------------------------------
@@ -118,11 +51,13 @@ DIM_LABELS = {
 
 def load_all_data():
     """Load chapter metadata and narrative DNA vectors."""
-    with open(PROJECT_ROOT / "data" / "rayuela_raw.json") as f:
+    from project_config import DATA_PATH, NARRATIVE_DNA_PATH, EMB_A_PATH
+
+    with open(DATA_PATH) as f:
         raw = json.load(f)
     chapters_meta = raw["chapters"]
 
-    with open(PROJECT_ROOT / "outputs" / "semantic" / "narrative_dna.json") as f:
+    with open(NARRATIVE_DNA_PATH) as f:
         dna = json.load(f)
     dna_chapters = dna["chapters"]
     dims = dna["dimensions"]
@@ -138,7 +73,7 @@ def load_all_data():
     meta_by_num = {ch["number"]: ch for ch in chapters_meta}
 
     # Load Scale A embeddings
-    emb_a = np.load(PROJECT_ROOT / "outputs" / "embeddings" / "chapter_embeddings.npy")
+    emb_a = np.load(EMB_A_PATH)
 
     return chapters_meta, dna_chapters, dims, scores, meta_by_num, emb_a
 
@@ -359,6 +294,9 @@ def fig_trajectory_smoothness(scores, emb_a, chapters_meta):
     ch_to_a_idx = {ch["number"]: i for i, ch in enumerate(chapters_meta)}
     dims_list = DIMS_ORDERED
 
+    # Z-standardize Scale B scores (consistent with all permutation tests)
+    scores_z = z_standardize_scores_dict(scores, dims_list)
+
     def path_distances(path, space="A"):
         """Compute consecutive distances along a reading path."""
         dists = []
@@ -367,14 +305,11 @@ def fig_trajectory_smoothness(scores, emb_a, chapters_meta):
                 if ch_a in ch_to_a_idx and ch_b in ch_to_a_idx:
                     va = emb_a[ch_to_a_idx[ch_a]]
                     vb = emb_a[ch_to_a_idx[ch_b]]
-                    # Cosine distance
                     cos_sim = np.dot(va, vb) / (np.linalg.norm(va) * np.linalg.norm(vb))
                     dists.append(1 - cos_sim)
             elif space == "B":
-                if ch_a in scores and ch_b in scores:
-                    va = np.array([scores[ch_a][d] for d in dims_list])
-                    vb = np.array([scores[ch_b][d] for d in dims_list])
-                    dists.append(np.linalg.norm(va - vb))
+                if ch_a in scores_z and ch_b in scores_z:
+                    dists.append(np.linalg.norm(scores_z[ch_a] - scores_z[ch_b]))
         return dists
 
     fig = make_subplots(
@@ -845,17 +780,21 @@ def fig_dual_heatmap(scores, meta_by_num):
 # 9. Permutation Test: Smoothness Significance
 # ---------------------------------------------------------------------------
 
-def fig_permutation_test(scores, emb_a, chapters_meta, n_perms=5000):
+def fig_permutation_test(scores, emb_a, chapters_meta, n_perms=N_PERMS):
     """
     Visualize the permutation test results: how smooth are the linear and
     hopscotch paths compared to random orderings?
 
-    This is the "hero" figure for the article — it directly shows that
-    the linear order is highly designed while the hopscotch is deliberately
-    disruptive.
+    CRITICAL: Each path is tested against its own null distribution:
+      - Linear (56 chapters): null = random permutations of chapters 1-56
+      - Hopscotch (155 chapters): null = random permutations of all 155 chapters
+    Using the same null for both would be invalid because longer paths have
+    lower variance in their mean consecutive distance (more averaging).
     """
     ch_to_idx = {ch["number"]: i for i, ch in enumerate(chapters_meta)}
-    rng = np.random.default_rng(42)
+    rng = np.random.default_rng(RNG_SEED)
+
+    scores_z = z_standardize_scores_dict(scores, DIMS_ORDERED)
 
     def path_dists(path, space):
         dists = []
@@ -866,109 +805,117 @@ def fig_permutation_test(scores, emb_a, chapters_meta, n_perms=5000):
                     cos = np.dot(va, vb) / (np.linalg.norm(va) * np.linalg.norm(vb))
                     dists.append(1 - cos)
             elif space == "B":
-                if a in scores and b in scores:
-                    va = np.array([scores[a][d] for d in DIMS_ORDERED])
-                    vb = np.array([scores[b][d] for d in DIMS_ORDERED])
-                    dists.append(np.linalg.norm(va - vb))
+                if a in scores_z and b in scores_z:
+                    dists.append(np.linalg.norm(scores_z[a] - scores_z[b]))
         return np.array(dists) if dists else np.array([0.0])
 
+    all_chapters = get_all_chapters()
+
+    # 2×2 layout: separate null distributions for linear vs hopscotch
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=2, cols=2,
         subplot_titles=(
-            "Scale A: Texture Space",
-            "Scale B: Narrative Space",
+            "Scale A — Linear (permute Ch.1-56)",
+            "Scale B — Linear (permute Ch.1-56)",
+            "Scale A — Hopscotch (permute all 155)",
+            "Scale B — Hopscotch (permute all 155)",
         ),
+        vertical_spacing=0.12,
         horizontal_spacing=0.12,
     )
 
-    all_ch_a = [ch["number"] for ch in chapters_meta]
-    scored_ch = list(scores.keys())
-
-    for col, (space, pool, label) in enumerate([
-        ("A", all_ch_a, "Cosine Distance"),
-        ("B", scored_ch, "Euclidean Distance"),
+    for col, (space, label) in enumerate([
+        ("A", "Cosine Distance"),
+        ("B", "Euclidean Distance (z-standardized)"),
     ], start=1):
         # Actual path means
         lin_mean = path_dists(LINEAR_ORDER, space).mean()
         hop_mean = path_dists(TABLERO, space).mean()
 
-        # Random permutation distribution
-        rand_means = []
+        # --- Linear null: permute the SAME 56 chapters ---
+        lin_rand_means = []
         for _ in range(n_perms):
-            perm = list(rng.permutation(pool)[:56])  # Same length as linear
-            d = path_dists(perm, space)
-            rand_means.append(d.mean())
-        rand_means = np.array(rand_means)
+            perm = list(rng.permutation(LINEAR_ORDER))
+            lin_rand_means.append(path_dists(perm, space).mean())
+        lin_rand_means = np.array(lin_rand_means)
 
-        # Z-scores
-        z_lin = (lin_mean - rand_means.mean()) / rand_means.std()
-        z_hop = (hop_mean - rand_means.mean()) / rand_means.std()
+        # Both scales use distance (lower = smoother) → EUCLIDEAN sign convention
+        z_lin = compute_z_score(lin_mean, lin_rand_means, DistanceMetric.EUCLIDEAN)
 
-        # Histogram of random
+        # --- Hopscotch null: permute ALL 155 chapters (both scales) ---
+        hop_rand_means = []
+        for _ in range(n_perms):
+            perm = list(rng.permutation(all_chapters))
+            hop_rand_means.append(path_dists(perm, space).mean())
+        hop_rand_means = np.array(hop_rand_means)
+
+        z_hop = compute_z_score(hop_mean, hop_rand_means, DistanceMetric.EUCLIDEAN)
+
+        # --- Row 1: Linear null + linear marker ---
         fig.add_trace(go.Histogram(
-            x=rand_means,
+            x=lin_rand_means,
             nbinsx=50,
             marker_color="rgba(158, 158, 158, 0.5)",
-            name="Random orderings" if col == 1 else None,
+            name="Random (56-ch shuffles)" if col == 1 else None,
             showlegend=(col == 1),
-            legendgroup="random",
+            legendgroup="random_lin",
         ), row=1, col=col)
 
-        # Linear marker
         fig.add_vline(
             x=lin_mean, row=1, col=col,
             line=dict(color="#4CAF50", width=3),
         )
+        yref_lin = "y domain" if col == 1 else "y2 domain"
+        xref_lin = "x" if col == 1 else "x2"
         fig.add_annotation(
-            x=lin_mean,
-            y=0.92,
-            yref="y domain" if col == 1 else "y2 domain",
+            x=lin_mean, y=0.92, yref=yref_lin, xref=xref_lin,
             text=f"<b>Linear</b><br>z = {z_lin:.1f}σ",
-            showarrow=True,
-            arrowhead=2,
-            arrowcolor="#4CAF50",
+            showarrow=True, arrowhead=2, arrowcolor="#4CAF50",
             font=dict(color="#4CAF50", size=11),
-            bgcolor="white",
-            bordercolor="#4CAF50",
-            borderwidth=1,
-            xref="x" if col == 1 else "x2",
+            bgcolor="white", bordercolor="#4CAF50", borderwidth=1,
         )
 
-        # Hopscotch marker
+        # --- Row 2: Hopscotch null + hopscotch marker ---
+        fig.add_trace(go.Histogram(
+            x=hop_rand_means,
+            nbinsx=50,
+            marker_color="rgba(158, 158, 158, 0.5)",
+            name="Random (155-ch shuffles)" if col == 1 else None,
+            showlegend=(col == 1),
+            legendgroup="random_hop",
+        ), row=2, col=col)
+
         fig.add_vline(
-            x=hop_mean, row=1, col=col,
+            x=hop_mean, row=2, col=col,
             line=dict(color="#F44336", width=3),
         )
+        yref_hop = "y3 domain" if col == 1 else "y4 domain"
+        xref_hop = "x3" if col == 1 else "x4"
         fig.add_annotation(
-            x=hop_mean,
-            y=0.75,
-            yref="y domain" if col == 1 else "y2 domain",
+            x=hop_mean, y=0.92, yref=yref_hop, xref=xref_hop,
             text=f"<b>Hopscotch</b><br>z = {z_hop:+.1f}σ",
-            showarrow=True,
-            arrowhead=2,
-            arrowcolor="#F44336",
+            showarrow=True, arrowhead=2, arrowcolor="#F44336",
             font=dict(color="#F44336", size=11),
-            bgcolor="white",
-            bordercolor="#F44336",
-            borderwidth=1,
-            xref="x" if col == 1 else "x2",
+            bgcolor="white", bordercolor="#F44336", borderwidth=1,
         )
 
         fig.update_xaxes(title_text=f"Mean {label}", row=1, col=col)
+        fig.update_xaxes(title_text=f"Mean {label}", row=2, col=col)
 
     fig.update_layout(
         title=dict(
             text=(
                 "Was the Reading Order Designed? Permutation Test (5,000 random orderings)<br>"
-                "<sub>The linear path is far smoother than chance; the hopscotch path is indistinguishable from random</sub>"
+                "<sub>Each path tested against its own null: linear vs shuffled Ch.1-56; "
+                "hopscotch vs shuffled all 155 chapters</sub>"
             ),
             font=dict(size=14),
         ),
         width=1100,
-        height=500,
+        height=800,
         plot_bgcolor="white",
-        yaxis=dict(title="Count"),
     )
+    fig.update_yaxes(title_text="Count", col=1)
 
     return fig
 

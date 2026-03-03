@@ -28,12 +28,14 @@ import json
 import numpy as np
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-EMB_PATH = PROJECT_ROOT / "outputs" / "embeddings" / "chapter_embeddings.npy"
-DATA_PATH = PROJECT_ROOT / "data" / "rayuela_raw.json"
+from project_config import (
+    PROJECT_ROOT, EMB_A_PATH as EMB_PATH, DATA_PATH,
+    RNG_SEED, N_PERMS, DistanceMetric,
+    z_score as compute_z_score,
+    continuity_corrected_percentile, get_all_chapters,
+)
 
-N_PERMUTATIONS = 10_000
-RNG_SEED = 42  # reproducibility
+N_PERMUTATIONS = N_PERMS
 
 
 def mean_consecutive_similarity(embeddings: np.ndarray, path: list[int]) -> float:
@@ -145,7 +147,7 @@ def main():
     print(f"  Observed mean consecutive similarity: {hopscotch_observed:.4f}")
     print(f"  Generating {N_PERMUTATIONS:,} random permutations of all 155 chapters...")
 
-    all_chapters = list(range(1, 156))
+    all_chapters = get_all_chapters()
     hopscotch_distribution = permutation_distribution(
         embeddings, all_chapters, N_PERMUTATIONS, rng
     )
@@ -193,11 +195,11 @@ def main():
           f"{hopscotch_pct:>11.1f}%")
     print()
 
-    # How much smoother is linear vs. hopscotch after accounting for baselines?
-    linear_z = (linear_observed - linear_distribution.mean()) / linear_distribution.std()
-    hopscotch_z = (hopscotch_observed - hopscotch_distribution.mean()) / hopscotch_distribution.std()
+    # Z-scores: positive = smoother than random (cosine similarity: higher = smoother)
+    linear_z = compute_z_score(linear_observed, linear_distribution, DistanceMetric.COSINE)
+    hopscotch_z = compute_z_score(hopscotch_observed, hopscotch_distribution, DistanceMetric.COSINE)
 
-    print(f"  Z-scores (standard deviations above random baseline):")
+    print(f"  Z-scores (positive = smoother than random):")
     print(f"    Linear:    {linear_z:+.2f}σ")
     print(f"    Hopscotch: {hopscotch_z:+.2f}σ")
     print()

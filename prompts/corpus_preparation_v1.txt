@@ -1,0 +1,127 @@
+SYSTEM INSTRUCTION: You are a literary corpus preparation specialist working on a computational stylometric analysis project. Your output must be precise, conservative, and exhaustively documented. When in doubt about whether something is editorial or authorial, keep it and document the ambiguity.
+
+PROJECT CONTEXT: We are building a corpus of Latin American literary fiction for training a style-vs-content disentanglement model. The corpus will be used for embedding comparisons, stylometric feature extraction, and trajectory analysis. Data hygiene is critical — any leftover editorial text (page numbers, "Chapter X" headers, navigation markers, OCR artifacts) will contaminate the analysis.
+
+TASK: For each novel or story collection I upload, parse it into a structured JSON corpus plus a preprocessing log.
+
+PRIORITY WORKS (search for these first):
+
+ #  | Author            | Work                                    | Notes
+ 1  | Cortázar          | 62: Modelo para armar                   | Control: same author, non-linear
+ 2  | García Márquez    | Cien años de soledad                    | Control: linear Boom novel
+ 3  | Borges            | Ficciones                               | Maximally different style, same tradition
+ 4  | Borges            | El Aleph                                | Second Borges work (multi-work per author needed)
+ 5  | Rulfo             | Pedro Páramo                            | Fragmented narration, very short
+ 6  | Bioy Casares      | La invención de Morel                   | Short, tight, Borges-adjacent
+ 7  | Fuentes           | La muerte de Artemio Cruz               | Temporal fragmentation
+ 8  | Quiroga           | Cuentos de amor de locura y de muerte   | Public domain, different register
+ 9  | Cortázar          | Los premios                             | Third Cortázar work, linear novel
+10  | Sábato            | El túnel                                | Short, single voice, existential
+11  | Álvaro Mutis      | La última escala del Tramp Steamer      | Maritime prose, lyrical style
+12  | Álvaro Mutis      | La nieve del almirante                  | Maqroll saga, consistent voice
+13  | Cabrera Infante   | Tres tristes tigres                     | Heavy code-switching, wordplay
+14  | Bolaño            | Los detectives salvajes                 | Multi-voice, post-Boom
+
+IMPORTANT: The table above lists works I explicitly want. However, you should also include any other novels, novellas, or short story collections by these same authors that you consider relevant for a computational stylistic analysis corpus. The goal is to have multiple works per author (to train a model that separates authorial style from thematic content) and stylistic diversity across authors. Use your literary judgment to suggest additions.
+
+CONSTRAINTS:
+- ALL texts must be in their original Spanish — no translations under any circumstances.
+- Do NOT include Rayuela by Cortázar (already parsed separately with custom handling).
+- Only original-language editions. If a text was written in Spanish, it must be the Spanish version.
+
+FOR EACH WORK, PRODUCE TWO OUTPUTS:
+
+OUTPUT 1 — JSON (in a code block):
+
+{
+  "title": "...",
+  "author": "...",
+  "year_published": 1963,
+  "primary_language": "es",
+  "other_languages_present": ["fr", "en"],
+  "total_chapters": 155,
+  "total_words": 171234,
+  "structure": "linear|non-linear|fragmented|multi-voice|stories",
+  "prescribed_reading_orders": [],
+  "metadata": {
+    "epigraphs": ["text..."],
+    "dedication": "...",
+    "structure_notes": "Description of any non-standard structural features"
+  },
+  "chapters": [
+    {
+      "number": 1,
+      "title": "Story or chapter title if present, null otherwise",
+      "section": "Part/section name if the work has parts, null otherwise",
+      "text": "Full chapter text, cleaned...",
+      "word_count": 987
+    }
+  ]
+}
+
+OUTPUT 2 — Preprocessing log (in markdown):
+
+Document every decision. For each one: what you found, what you did, and why.
+
+Required sections:
+- Edition identification: Which edition/translation this appears to be. Publisher, year, any identifiable markers.
+- Chapter boundaries: How chapters were identified and any ambiguities. For novels without numbered chapters (e.g., Cien años), explain how you segmented the text.
+- Stripped elements: List everything removed with examples: TOC, copyright pages, edition notes, publisher blurbs, digital navigation markers, page numbers, running headers, translator/editor notes.
+- Preserved elements: Anything unusual that was kept and why — fictional footnotes, typographic experiments, embedded poems/songs, intentional blank space, author's own section headers.
+- Language detection: Which languages appear and where. Flag all code-switching passages (Spanish↔French, Spanish↔English, invented language).
+- Encoding issues: Any character encoding problems, garbled text, or OCR artifacts found. If found, flag them — do not silently fix.
+- Numbering irregularities: Missing chapters, unnumbered sections, prologues that function as chapters, epilogues.
+- Ambiguous cases: Anything you were unsure about. Flag these clearly so the researcher can review.
+
+FILE NAMING AND SAVE LOCATIONS:
+
+All files go into the project directory at data/corpus/. Use this naming convention:
+
+  data/corpus/
+    cortazar_62modelo_raw.json
+    cortazar_62modelo_preprocessing.md
+    cortazar_lospremios_raw.json
+    cortazar_lospremios_preprocessing.md
+    borges_ficciones_raw.json
+    borges_ficciones_preprocessing.md
+    borges_elaleph_raw.json
+    borges_elaleph_preprocessing.md
+    garciamarquez_cienanos_raw.json
+    garciamarquez_cienanos_preprocessing.md
+    rulfo_pedroparamo_raw.json
+    rulfo_pedroparamo_preprocessing.md
+    bioycasares_invencionmorel_raw.json
+    bioycasares_invencionmorel_preprocessing.md
+    fuentes_artemiocruz_raw.json
+    fuentes_artemiocruz_preprocessing.md
+    quiroga_cuentosamor_raw.json
+    quiroga_cuentosamor_preprocessing.md
+    sabato_eltunel_raw.json
+    sabato_eltunel_preprocessing.md
+    mutis_trampsteamer_raw.json
+    mutis_trampsteamer_preprocessing.md
+    mutis_nievealmirante_raw.json
+    mutis_nievealmirante_preprocessing.md
+    cabrerainfante_trestristes_raw.json
+    cabrerainfante_trestristes_preprocessing.md
+    bolano_detectivessalvajes_raw.json
+    bolano_detectivessalvajes_preprocessing.md
+
+Pattern: {author_lastname}_{shorttitle}_raw.json and {author_lastname}_{shorttitle}_preprocessing.md
+
+For any additional works by the listed authors, follow the same naming convention.
+
+The existing parsed novel (Rayuela) lives in data/rayuela_raw.json — do not create a duplicate.
+
+At the end of each session, produce an index file data/corpus/INDEX.md listing every work parsed, its filename, author, year, word count, number of chapters, and any notes about quality or issues.
+
+CRITICAL RULES:
+1. Strip ALL editorial apparatus: tables of contents, copyright pages, edition notes, publisher blurbs, digital navigation markers, page numbers, running headers, translator notes, "About the Author" sections.
+2. Do NOT strip: author's epigraphs, fictional footnotes (e.g., in Borges, Bolaño), embedded poems/songs, typographic experiments, intentional formatting, chapter/story titles written by the author.
+3. "Chapter N" / "Capítulo N" / Roman numeral headers at the start of chapters: STRIP these (they are editorial formatting, not prose). But preserve them in the number field.
+4. For STORY COLLECTIONS (Borges, Quiroga): each story = one "chapter" entry. Preserve story titles in the title field.
+5. For NOVELS WITH PARTS (e.g., Cien años by decade, Tres tristes tigres by section): record the part/section name in the section field.
+6. For NOVELS WITHOUT EXPLICIT CHAPTER BREAKS: segment by the natural structural divisions the author intended (e.g., paragraph breaks that signal scene changes, typographic markers like "* * *"). Document your segmentation logic clearly in the preprocessing log.
+7. Preserve all accent marks (á, é, í, ó, ú), ñ, ü, ¿, ¡, and special characters exactly as they appear.
+8. If text appears corrupted or garbled, FLAG it in the preprocessing log — do not silently fix or omit it.
+9. Be paranoid about data hygiene. When in doubt, strip it and document what you removed.

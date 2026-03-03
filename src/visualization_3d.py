@@ -31,37 +31,17 @@ import plotly.graph_objects as go
 import plotly.express as px
 import umap
 
+from project_config import (
+    PROJECT_ROOT, OUTPUT_FIGURES_DIR,
+    TABLERO, LINEAR_ORDER, SECTION_COLORS, SECTION_SHORT,
+    UMAP_N_NEIGHBORS, UMAP_MIN_DIST, DistanceMetric,
+)
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = PROJECT_ROOT / "outputs" / "figures"
-
-TABLERO = [
-    73, 1, 2, 116, 3, 84, 4, 71, 5, 81, 74, 6, 7, 8, 93, 68, 9, 104,
-    10, 65, 11, 136, 12, 106, 13, 115, 14, 114, 117, 15, 120, 16, 137,
-    17, 97, 18, 153, 19, 90, 20, 126, 21, 79, 22, 62, 23, 124, 128, 24,
-    134, 25, 141, 60, 26, 109, 27, 28, 130, 151, 152, 131, 29, 139, 30,
-    138, 31, 32, 132, 33, 140, 34, 135, 35, 105, 36, 63, 37, 98, 38,
-    102, 39, 113, 40, 120, 41, 100, 42, 76, 43, 44, 108, 45, 69, 46,
-    101, 47, 110, 48, 111, 49, 118, 50, 119, 51, 69, 52, 89, 53, 66,
-    149, 54, 129, 139, 133, 140, 138, 127, 56, 135, 63, 88, 72, 77, 131,
-    58, 131,
-]
-
-LINEAR_ORDER = list(range(1, 57))
-
-SECTION_COLORS = {
-    "Del lado de allá": "#2196F3",
-    "Del lado de acá": "#FF9800",
-    "De otros lados (Capítulos prescindibles)": "#9C27B0",
-}
-SECTION_SHORT = {
-    "Del lado de allá": "Allá (Paris)",
-    "Del lado de acá": "Acá (Buenos Aires)",
-    "De otros lados (Capítulos prescindibles)": "Otros lados (Expendable)",
-}
+OUTPUT_DIR = OUTPUT_FIGURES_DIR
 
 
 # ---------------------------------------------------------------------------
@@ -138,9 +118,9 @@ def reduce_decorrelated(matrix: np.ndarray, dims: list[str], threshold: float = 
 
 def run_umap_3d(
     vectors: np.ndarray,
-    n_neighbors: int = 20,
-    min_dist: float = 0.1,
-    metric: str = "cosine",
+    n_neighbors: int = UMAP_N_NEIGHBORS,
+    min_dist: float = UMAP_MIN_DIST,
+    metric: DistanceMetric = DistanceMetric.COSINE,
     random_state: int = 42,
 ) -> np.ndarray:
     """Project to 3D using UMAP."""
@@ -148,7 +128,7 @@ def run_umap_3d(
         n_components=3,
         n_neighbors=min(n_neighbors, len(vectors) - 1),
         min_dist=min_dist,
-        metric=metric,
+        metric=metric.value,
         random_state=random_state,
     )
     return reducer.fit_transform(vectors)
@@ -258,8 +238,8 @@ def main():
         "scale_a", "scale_b_full", "scale_b_top8",
         "scale_b_pca5", "scale_b_pca8", "scale_b_decorr",
     ], help="Run only one experiment")
-    parser.add_argument("--n-neighbors", type=int, default=20)
-    parser.add_argument("--min-dist", type=float, default=0.1)
+    parser.add_argument("--n-neighbors", type=int, default=UMAP_N_NEIGHBORS)
+    parser.add_argument("--min-dist", type=float, default=UMAP_MIN_DIST)
     args = parser.parse_args()
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -271,7 +251,7 @@ def main():
     # --- Scale A: 1024-dim → 3D ---
     def exp_scale_a():
         print("\n=== Scale A: 1024-dim → 3D UMAP (cosine) ===")
-        coords = run_umap_3d(emb_a, args.n_neighbors, args.min_dist, "cosine")
+        coords = run_umap_3d(emb_a, args.n_neighbors, args.min_dist, DistanceMetric.COSINE)
         fig = make_3d_figure(
             coords, chapters_meta,
             "Scale A: Texture Embeddings (1024-dim → 3D)",
@@ -284,7 +264,7 @@ def main():
     # --- Scale B full: 20-dim → 3D ---
     def exp_scale_b_full():
         print("\n=== Scale B Full: 20-dim → 3D UMAP (euclidean) ===")
-        coords = run_umap_3d(matrix_b, args.n_neighbors, args.min_dist, "euclidean")
+        coords = run_umap_3d(matrix_b, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
             coords, chapters_meta,
             "Scale B Full: Narrative DNA (20-dim → 3D)",
@@ -299,7 +279,7 @@ def main():
         reduced, sel_dims = reduce_top_variance(matrix_b, dims, k=8)
         print(f"\n=== Scale B Top-8 Variance: {len(sel_dims)}-dim → 3D UMAP ===")
         print(f"  Selected: {sel_dims}")
-        coords = run_umap_3d(reduced, args.n_neighbors, args.min_dist, "euclidean")
+        coords = run_umap_3d(reduced, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
             coords, chapters_meta,
             "Scale B: Top-8 Variance Dimensions → 3D",
@@ -314,7 +294,7 @@ def main():
         projected, explained = reduce_pca(matrix_b, k=5)
         print(f"\n=== Scale B PCA-5: 20-dim → 5 PCs → 3D UMAP ===")
         print(f"  Variance explained: {explained*100:.1f}%")
-        coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, "euclidean")
+        coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
             coords, chapters_meta,
             "Scale B: PCA-5 → 3D UMAP",
@@ -329,7 +309,7 @@ def main():
         projected, explained = reduce_pca(matrix_b, k=8)
         print(f"\n=== Scale B PCA-8: 20-dim → 8 PCs → 3D UMAP ===")
         print(f"  Variance explained: {explained*100:.1f}%")
-        coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, "euclidean")
+        coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
             coords, chapters_meta,
             "Scale B: PCA-8 → 3D UMAP",
@@ -346,7 +326,7 @@ def main():
         print(f"  Kept (|r| < 0.70 between all pairs): {sel_dims}")
         dropped = [d for d in dims if d not in sel_dims]
         print(f"  Dropped: {dropped}")
-        coords = run_umap_3d(reduced, args.n_neighbors, args.min_dist, "euclidean")
+        coords = run_umap_3d(reduced, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
             coords, chapters_meta,
             f"Scale B: De-correlated ({len(sel_dims)}-dim → 3D)",

@@ -1,9 +1,15 @@
 # Data files (copyrighted text — never version)
 data/*.epub
+data/*.pdf
 data/*.txt
 data/*.json
 data/**/*.npy
 data/calibration/
+data/corpus/
+
+# Old packages and local deliverables
+*.tar.gz
+publication/
 
 # Local prompt versions with embedded copyrighted text
 prompts/*_local.txt

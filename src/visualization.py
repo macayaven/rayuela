@@ -34,42 +34,17 @@ from plotly.subplots import make_subplots
 import plotly.express as px
 import umap
 
+from project_config import (
+    PROJECT_ROOT, OUTPUT_FIGURES_DIR,
+    TABLERO, LINEAR_ORDER, SECTION_COLORS, SECTION_SHORT,
+    UMAP_N_NEIGHBORS, UMAP_MIN_DIST, DistanceMetric,
+)
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = PROJECT_ROOT / "outputs" / "figures"
-
-# Cortázar's Tablero de Dirección (hopscotch reading order)
-# From the novel's instruction page — all 155 chapters
-TABLERO = [
-    73, 1, 2, 116, 3, 84, 4, 71, 5, 81, 74, 6, 7, 8, 93, 68, 9, 104,
-    10, 65, 11, 136, 12, 106, 13, 115, 14, 114, 117, 15, 120, 16, 137,
-    17, 97, 18, 153, 19, 90, 20, 126, 21, 79, 22, 62, 23, 124, 128, 24,
-    134, 25, 141, 60, 26, 109, 27, 28, 130, 151, 152, 131, 29, 139, 30,
-    138, 31, 32, 132, 33, 140, 34, 135, 35, 105, 36, 63, 37, 98, 38,
-    102, 39, 113, 40, 120, 41, 100, 42, 76, 43, 44, 108, 45, 69, 46,
-    101, 47, 110, 48, 111, 49, 118, 50, 119, 51, 69, 52, 89, 53, 66,
-    149, 54, 129, 139, 133, 140, 138, 127, 56, 135, 63, 88, 72, 77, 131,
-    58, 131,
-]
-
-# Linear reading order: chapters 1-56
-LINEAR_ORDER = list(range(1, 57))
-
-# Section colors — keys must match actual data in rayuela_raw.json
-SECTION_COLORS = {
-    "Del lado de allá": "#2196F3",                         # Blue — Paris
-    "Del lado de acá": "#FF9800",                          # Orange — Buenos Aires
-    "De otros lados (Capítulos prescindibles)": "#9C27B0", # Purple — Expendable
-}
-
-SECTION_SHORT = {
-    "Del lado de allá": "Allá (Paris)",
-    "Del lado de acá": "Acá (B.A.)",
-    "De otros lados (Capítulos prescindibles)": "Otros lados",
-}
+OUTPUT_DIR = OUTPUT_FIGURES_DIR
 
 
 # ---------------------------------------------------------------------------
@@ -122,9 +97,9 @@ def load_scale_b() -> tuple[np.ndarray | None, list[dict] | None]:
 
 def run_umap(
     vectors: np.ndarray,
-    n_neighbors: int = 20,
-    min_dist: float = 0.1,
-    metric: str = "cosine",
+    n_neighbors: int = UMAP_N_NEIGHBORS,
+    min_dist: float = UMAP_MIN_DIST,
+    metric: DistanceMetric = DistanceMetric.COSINE,
     random_state: int = 42,
 ) -> np.ndarray:
     """Project high-dimensional vectors to 2D using UMAP."""
@@ -132,7 +107,7 @@ def run_umap(
         n_components=2,
         n_neighbors=n_neighbors,
         min_dist=min_dist,
-        metric=metric,
+        metric=metric.value,
         random_state=random_state,
     )
     return reducer.fit_transform(vectors)
@@ -333,10 +308,10 @@ def main():
     parser = argparse.ArgumentParser(description="Phase 4: UMAP visualization")
     parser.add_argument("--scale-a-only", action="store_true",
                         help="Only visualize Scale A (skip Scale B)")
-    parser.add_argument("--n-neighbors", type=int, default=20,
-                        help="UMAP n_neighbors (default: 20)")
-    parser.add_argument("--min-dist", type=float, default=0.1,
-                        help="UMAP min_dist (default: 0.1)")
+    parser.add_argument("--n-neighbors", type=int, default=UMAP_N_NEIGHBORS,
+                        help=f"UMAP n_neighbors (default: {UMAP_N_NEIGHBORS})")
+    parser.add_argument("--min-dist", type=float, default=UMAP_MIN_DIST,
+                        help=f"UMAP min_dist (default: {UMAP_MIN_DIST})")
     parser.add_argument("--no-trajectories", action="store_true",
                         help="Don't overlay reading paths")
     args = parser.parse_args()
@@ -354,7 +329,7 @@ def main():
         embeddings_a,
         n_neighbors=args.n_neighbors,
         min_dist=args.min_dist,
-        metric="cosine",
+        metric=DistanceMetric.COSINE,
     )
     print(f"UMAP projection: {coords_a.shape}")
 
@@ -392,7 +367,7 @@ def main():
         vectors_b,
         n_neighbors=min(args.n_neighbors, len(vectors_b) - 1),
         min_dist=args.min_dist,
-        metric="euclidean",  # Scale B has comparable scales (1-10)
+        metric=DistanceMetric.EUCLIDEAN,
     )
     print(f"UMAP projection: {coords_b.shape}")
 
