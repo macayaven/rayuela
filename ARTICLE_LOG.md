@@ -116,5 +116,96 @@
 
 **Visuals**: No new figures — same 10 PNGs, but captions updated to reflect 4-scale framing.
 
-**Reviewer feedback**: Both articles submitted to Gemini 3 Flash Preview and Codex GPT-5.3 for post-revision opinions (not corrections). Results pending.
+**Reviewer feedback**: Both reviewers called the revised articles "ready for publication." Gemini highlighted the gradient argument and curvature as the strongest additions. Codex called the thesis "genuinely memorable" and noted Part 2's mid-section density as the only pacing concern.
 
+### 2026-03-03 — Publication Package and GitHub Push
+
+**Phase**: Publication prep + repo cleanup
+
+**What happened**: Created a publication package (`publication/part1/` and `publication/part2/`) with clean articles and 10 figure PNGs. Removed obsolete files (old drafts, duplicates). Fixed .gitignore to cover PDFs that were exposed. Removed all future teasers from articles — no more "Part 3 will explore..." promises. Added collaboration attribution crediting Claude (implementation/drafting), GPT-5.3 Codex and Gemini 3 Flash Preview (code reviews). Updated GitHub Pages index with 4-scale framing and figure descriptions. Pushed two commits: code (20 files) + articles/assets (16 files). Zero copyrighted data in repo.
+
+**Key finding/decision**: The articles now stand as self-contained, complete pieces — no open-ended promises, no implementation noise (Docker, DGX Spark, overnight audits), just the research and its findings. The collaboration attribution is explicit and honest: this was built as a team.
+
+**For the article**: The microscope is not a judge. It reveals structure that was always there but invisible to the unaided eye. What we make of that structure — whether we find it beautiful, significant, or worth arguing about — remains irreducibly human.
+
+**Visuals**: 10 PNGs in `publication/part1/` (figures 1-5) and `publication/part2/` (figures 6-10). GitHub Pages live at `carloscrespomacaya.com/rayuela` with updated index.
+
+### 2026-03-03 — Data Leakage Audit (3/3 Clean) and Replication Strategy
+
+**Phase**: Verification & methodology hardening
+
+**What happened**: Audited the entire Scale A pipeline for circular analysis — does the E5 embedding model ever see chapter numbers, section labels, or hopscotch navigation markers? Three independent reviewers examined the code: Claude (static data-flow trace across `src/parsing.py`, `src/embeddings.py`, `src/embeddings_windowed.py`), Gemini 3 Flash Preview (structural code analysis), and GPT-5.3 Codex (dynamic verification — ran Python scripts against the actual ePub to confirm zero metadata leakage in all 155 chapters). All three returned clean verdicts. The pipeline extracts only `ch["text"]` (the stripped prose), applies a uniform instruction prefix, and never exposes chapter numbers, section names, or reading path information to the model.
+
+**Key finding/decision**: The +2.8σ hopscotch smoothness finding is not an artifact of metadata leakage. Three independent reviewers confirmed the model receives only prose content. Codex's contribution was especially strong: it didn't just read the code, it tested the actual parsed output against the original XHTML to verify zero residual navigation markers.
+
+**Replication strategy**: Carlos proposed convergent validity — re-running Scale A with a completely different embedding model. Found `nvidia/llama-nemotron-embed-1b-v2` (NVIDIA, Llama 3.2-based bidirectional encoder, 1.24B params, multilingual including Spanish/French/English). This is maximally independent from E5: different company, different architecture (decoder-made-bidirectional vs encoder-only), different training pipeline, different base data. Embedding dimension is configurable to 1024 to match E5. Compatible with sentence-transformers on our DGX Spark. If both models detect hopscotch smoothness above random, the finding is model-independent — it's in the text, not an artifact of any single model's quirks.
+
+**For the article**: We didn't just claim our pipeline was clean — we proved it with three independent auditors, including one that tested the actual data. Then we asked: what if the model itself is the bias? So we planned a replication with a completely different model. This is how you build an argument that can withstand scrutiny.
+
+### 2026-03-03 — Convergent Validity: Nemotron Replication
+
+**Phase**: Verification & methodology hardening
+
+**What happened**: Replicated Scale A with `nvidia/llama-nemotron-embed-1b-v2` — a fundamentally different model (Llama 3.2 decoder-made-bidirectional, 1.2B params, 2048 dims) from our original E5 (encoder-only, 560M params, 1024 dims). Different company (NVIDIA vs Microsoft), different architecture, different training pipeline. Ran the full 155-chapter embedding pipeline and the same trajectory permutation test (5,000 permutations, seed 42).
+
+**Key finding**: Partial convergence — the most honest result we could have hoped for.
+
+| Path | E5 (1024d) | Nemotron (2048d) | Direction? |
+|------|------------|------------------|------------|
+| Linear | +6.40σ | +9.73σ | Both strongly significant |
+| Hopscotch | +2.80σ | +1.01σ | Both positive, but only E5 >2σ |
+
+The linear finding is rock-solid: two independent models agree the sequential path is extraordinarily smooth. The hopscotch finding is more nuanced — both models detect above-random smoothness (both positive z), but the signal strength is model-sensitive. E5's semantic similarity training captures more of Cortazar's thematic threading than Nemotron's retrieval-oriented training.
+
+**For the article**: We replicated our analysis with a completely different AI model — different company, different architecture, different training. The linear finding survived perfectly. The hopscotch finding survived in direction (both positive) but not magnitude. This is what real science looks like: not a perfect echo, but a consistent signal that depends on what you're measuring. The instrument matters — and reporting that honestly is what distinguishes research from advocacy.
+
+---
+
+### Session 2026-03-03 (Evening) — Scale B Inter-Rater Reliability: Setup
+
+**The question**: Our Scale B "Narrative DNA" scores were extracted by a single LLM (Qwen 3.5 27B). Are those scores measuring something real in the text, or just one model's idiosyncrasies? This is the "inter-rater reliability" problem from psychometrics — if two independent raters agree, the signal is real.
+
+**The second rater**: We selected `RedHatAI/Llama-3.1-Nemotron-70B-Instruct-HF-FP8-dynamic` — NVIDIA's 70B instruction-tuned model, FP8 quantized. Independence vectors: different company (NVIDIA vs Alibaba), different base architecture (Llama 3.1 vs Qwen 3.5), different parameter count (70B vs 27B), different training pipeline.
+
+**External review**: Gemini 3 Flash and GPT-5.3 Codex both reviewed the plan. Key catches:
+- Codex flagged that our `--max-model-len 16384` was too tight for Chapter 28 (12,332 words × ~1.4 tokens/word = ~17K tokens). Increased to 24576.
+- Codex caught a silent model-fallback bug in `semantic_extraction.py` that could invalidate the replication by accidentally running Qwen while labeling outputs as Nemotron. Fixed to fail hard on model mismatch.
+- Both recommended adding quadratic weighted Cohen's kappa (chance-corrected ordinal agreement) alongside Spearman/Pearson. Added via scikit-learn.
+- Gemini confirmed guided JSON decoding is model-agnostic in vLLM — the same v1 prompt works unchanged.
+
+**Files created**: `src/replication_scale_b.py` (comparison metrics), `vllm-nemotron` service in `docker-compose.yml`.
+
+**Status**: Nemotron 70B vLLM server is compiling CUDA kernels (first-time cost, ~20-30 min). Once ready, extraction runs detached: `docker compose run --rm -d --name rayuela-extract-nemotron rayuela python src/semantic_extraction.py --model "RedHatAI/Llama-3.1-Nemotron-70B-Instruct-HF-FP8-dynamic" --output-dir outputs/semantic_nemotron --resume`
+
+**For the article**: We're applying the same rigor to our AI-generated scores that psychometricians apply to human raters. If two completely independent AI models — from different companies, with different architectures — read the same Cortázar chapter and score it similarly on "existential questioning" or "humor," then that score reflects something real in the prose. If they disagree, we learn which literary dimensions are robustly measurable and which are more in the eye of the (silicon) beholder.
+
+---
+
+### 2026-03-04 — Inter-Rater Reliability Results & Dimension Exclusion
+
+**The data is in.** Nemotron 70B scored all 155 chapters overnight with zero failures. The inter-rater reliability comparison:
+
+- **Overall**: ρ = 0.844, mean weighted κ = 0.753 ("substantial" on the Landis & Koch scale)
+- **18/20 dimensions** show strong agreement (ρ ≥ 0.7), including the most narratively important ones: Existential Questioning (0.91), Love/Desire (0.93), Dialogue (0.94), Oliveira (0.92)
+- **1 moderate**: Language Experimentation (ρ = 0.50) — weak but reliably positive
+- **1 anti-correlated**: Temporal Clarity (ρ = -0.30, κw = -0.16) — the models systematically disagree
+
+**The failed dimension is the most interesting finding.** `temporal_clarity` uses a rubric where "1 = Clear timeline, 10 = Fragmented," but the label says "Clarity." One model appears to follow the label (high clarity = high score), the other follows the rubric (fragmented = high score). Bootstrap CIs confirm the disagreement is systematic, not noisy: 95% CI [-0.47, -0.12]. Reverse-coding doesn't fix it (ρ only reaches +0.30). This is exactly the kind of dimension where *Rayuela*'s famous temporal play makes LLM scoring genuinely ambiguous.
+
+**Decision after consulting three reviewers (Gemini, Codex, Claude):** Drop `temporal_clarity` only. Keep `language_experimentation` as lower-confidence but real signal. The validated Scale B is now 19 dimensions.
+
+**Re-run results (19D):** Linear +4.46σ (slightly stronger), Hopscotch -0.28σ (still indistinguishable from random), Curvature -4.67σ (still maximally jagged). The core findings are robust — removing the noisy dimension barely changed the z-scores. Cross-scale Mantel correlation A↔B: 0.532 (up from 0.505 with 20D).
+
+**For the article**: The failure of `temporal_clarity` is itself a finding worth reporting. In a novel where time is famously fractured — where Chapter 34 interleaves two narratives, where the hopscotch path jumps across decades — asking "how clear is the timeline?" may not have a single correct answer. The models aren't wrong; they're disagreeing about something genuinely ambiguous. This is where quantitative analysis meets the irreducible complexity of literature.
+
+---
+
+### 2026-03-04 (Evening) — Implementation, Figure Regeneration, and Commit
+
+**What happened**: Implemented the dimension exclusion in `project_config.py` (`DIMS_EXCLUDED`, `DIMS_ORDERED_ALL` for replication, `DIMS_ORDERED` 19D for analysis, `filter_excluded_dims()` helper). Updated `replication_scale_b.py` to report all 20 dims with exclusion markers, and `trajectory_stylometrics.py` / `scale_comparison.py` to filter the `.npy` columns. Regenerated all 10 article HTML figures and 8 PNGs with the 19D instrument. Updated GitHub Pages. Committed as "Phase 7: Inter-rater reliability and dimension validation" (28 files, +1008/-113 lines). Prepared self-contained Claude App prompt for article text updates (20→19D, add IRR section).
+
+**Key finding/decision**: The 19D re-run confirmed all findings are robust to the exclusion. The z-scores barely moved (Hopscotch -0.4σ → -0.28σ, Curvature -4.7σ → -4.67σ). Cross-scale Mantel A↔B improved slightly (0.505 → 0.532) — removing noise strengthened the signal.
+
+**For the article**: We didn't just flag a bad dimension and move on — we re-ran everything. The z-scores held. The figures held. The cross-scale correlations actually improved. That's the difference between a finding that depends on a specific configuration and one that reflects something real in the text.
+
+**Figures regenerated**: `article_images/figure{3,4,5,6,7,8,9,10}_*.png`, all `docs/*.html` (GitHub Pages).

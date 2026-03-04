@@ -1,11 +1,13 @@
-# Project Rayuela — Two-service architecture
+# Project Rayuela — Multi-service architecture
 # 1. rayuela: analysis environment (embeddings, TDA, visualization, JupyterLab)
-# 2. vllm: NVIDIA's optimized LLM server (Llama 3.3 70B for semantic extraction)
+# 2. vllm: Qwen 3.5 27B for Scale B semantic extraction
+# 3. vllm-nemotron: Nemotron 70B for Scale B replication (inter-rater reliability)
 #
 # Usage:
-#   docker compose up rayuela          # analysis only (most sessions)
-#   docker compose up vllm             # start LLM server when needed for Scale B
-#   docker compose up                  # both services
+#   docker compose up rayuela                      # analysis only (most sessions)
+#   docker compose --profile llm up vllm           # Qwen 3.5 for Scale B
+#   docker compose --profile llm-nemotron up vllm-nemotron  # Nemotron 70B for replication
+#   docker compose up                              # all non-profiled services
 
 services:
   rayuela:
@@ -66,6 +68,36 @@ services:
       --enable-prefix-caching
     profiles:
       - llm  # Only starts when explicitly requested: docker compose --profile llm up
+
+  vllm-nemotron:
+    image: vllm/vllm-openai:cu130-nightly-aarch64
+    runtime: nvidia
+    network_mode: host
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    shm_size: "32g"
+    volumes:
+      - vllm-models:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+    # Nemotron 70B FP8: inter-rater reliability replication for Scale B
+    # RedHat FP8 dynamic quant (~37 GB) — standard Llama arch, native vLLM support
+    # No --language-model-only needed (pure text model, no vision encoder)
+    # NOTE: Uses same port 8000 as vllm service — never run both profiles simultaneously
+    command: >
+      RedHatAI/Llama-3.1-Nemotron-70B-Instruct-HF-FP8-dynamic
+      --max-model-len 24576
+      --gpu-memory-utilization 0.85
+      --enable-prefix-caching
+      --max-num-seqs 4
+    profiles:
+      - llm-nemotron  # docker compose --profile llm-nemotron up vllm-nemotron
 
 volumes:
   vllm-models:

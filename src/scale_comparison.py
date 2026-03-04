@@ -23,6 +23,7 @@ from project_config import (
     STYLE_LLM_PATH, STYLE_LLM_JSON_PATH,
     DistanceMetric, RNG_SEED, N_PERMS,
     z_score as compute_z_score, z_standardize, get_all_chapters,
+    filter_excluded_dims,
 )
 
 
@@ -193,7 +194,7 @@ def main():
 
     # --- Scale B: Narrative DNA ---
     if EMB_B_PATH.exists():
-        emb_b = z_standardize(np.load(EMB_B_PATH))
+        emb_b = z_standardize(filter_excluded_dims(np.load(EMB_B_PATH)))
         scales_for_mantel["B (narrative DNA)"] = emb_b
 
         rng = np.random.default_rng(RNG_SEED)

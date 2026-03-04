@@ -54,20 +54,13 @@
       border-radius: 8px;
       text-decoration: none;
       color: #333;
+      font-weight: 500;
       transition: all 0.2s;
     }
     .card:hover {
       border-color: #2196F3;
       box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
       transform: translateY(-1px);
-    }
-    .card .title {
-      font-weight: 600;
-      margin-bottom: 0.3rem;
-    }
-    .card .desc {
-      font-size: 0.85rem;
-      color: #777;
     }
     footer {
       margin-top: 3rem;
@@ -82,103 +75,48 @@
 <body>
 
 <h1>What Does a Novel Look Like From the Inside?</h1>
-<p class="subtitle">Interactive Visualizations &mdash; Computational Analysis of Cortazar's <em>Rayuela</em></p>
+<p class="subtitle">Interactive Visualizations for the Computational Analysis of Cortazar's <em>Rayuela</em></p>
 
 <p class="intro">
-  These interactive charts accompany a two-part article on using AI to map the hidden structure of
-  Julio Cortazar's <em>Rayuela</em> (1963). Each chapter was measured at four independent scales &mdash;
-  holistic embeddings, content-free stylometrics, LLM-perceived style, and explicit narrative DNA &mdash;
-  then both reading paths were tested against 5,000 random orderings. All visualizations are built
-  with Plotly: hover for details, drag to pan, scroll to zoom, click legend items to toggle layers.
-  3D charts can be orbited by dragging.
+  These interactive charts accompany our article on using AI to map the hidden structure of
+  Julio Cortazar's <em>Rayuela</em> (1963). Each visualization is built with Plotly and is
+  fully interactive: hover for details, drag to pan, scroll to zoom, and click legend items
+  to toggle layers. 3D charts can be orbited by dragging.
 </p>
 
 <h2>Article Figures</h2>
 <div class="grid">
-  <a href="article_permutation.html" class="card">
-    <div class="title">Permutation Test</div>
-    <div class="desc">Was the reading order designed? Each path vs. 5,000 random shuffles.</div>
-  </a>
-  <a href="article_smoothness.html" class="card">
-    <div class="title">Trajectory Smoothness</div>
-    <div class="desc">Consecutive chapter similarity along both reading paths.</div>
-  </a>
-  <a href="article_weaving.html" class="card">
-    <div class="title">Section Weaving</div>
-    <div class="desc">How the hopscotch interleaves Paris, Buenos Aires, and expendable chapters.</div>
-  </a>
-  <a href="article_journey.html" class="card">
-    <div class="title">Emotional Arcs</div>
-    <div class="desc">Six narrative dimensions traced along both reading paths.</div>
-  </a>
-  <a href="article_heatmap.html" class="card">
-    <div class="title">Narrative DNA Heatmap</div>
-    <div class="desc">155 chapters scored on 20 dimensions &mdash; the full semantic profile.</div>
-  </a>
-  <a href="article_radar.html" class="card">
-    <div class="title">Chapter Fingerprints</div>
-    <div class="desc">Radar charts comparing notable chapters across all 20 dimensions.</div>
-  </a>
-  <a href="article_dual_heatmap.html" class="card">
-    <div class="title">Dual Heatmap</div>
-    <div class="desc">Same data, two reading orders &mdash; smooth gradients vs. rapid alternation.</div>
-  </a>
-  <a href="article_sections.html" class="card">
-    <div class="title">Section Profiles</div>
-    <div class="desc">How the 20 dimensions distribute across Paris, Buenos Aires, and expendable chapters.</div>
-  </a>
-  <a href="article_correlation.html" class="card">
-    <div class="title">Dimension Correlations</div>
-    <div class="desc">The hidden grammar of Cortazar's writing modes.</div>
-  </a>
+      <a href="article_permutation.html" class="card">Permutation</a>
+      <a href="article_smoothness.html" class="card">Smoothness</a>
+      <a href="article_weaving.html" class="card">Weaving</a>
+      <a href="article_journey.html" class="card">Journey</a>
+      <a href="article_heatmap.html" class="card">Heatmap</a>
+      <a href="article_radar.html" class="card">Radar</a>
+      <a href="article_dual_heatmap.html" class="card">Dual Heatmap</a>
+      <a href="article_dual.html" class="card">Dual</a>
+      <a href="article_sections.html" class="card">Sections</a>
+      <a href="article_correlation.html" class="card">Correlation</a>
 </div>
 
 <h2>UMAP Projections</h2>
 <div class="grid">
-  <a href="umap_comparison.html" class="card">
-    <div class="title">Scale A vs. Scale B</div>
-    <div class="desc">Holistic embeddings alongside semantic decomposition.</div>
-  </a>
-  <a href="umap_scale_a.html" class="card">
-    <div class="title">Scale A (Holistic)</div>
-    <div class="desc">1,024-dim embeddings projected to 2D &mdash; the AI's undifferentiated impression.</div>
-  </a>
-  <a href="umap_scale_b.html" class="card">
-    <div class="title">Scale B (Narrative DNA)</div>
-    <div class="desc">20-dim semantic profiles projected to 2D.</div>
-  </a>
+      <a href="umap_comparison.html" class="card">Umap: Comparison</a>
+      <a href="umap_scale_a.html" class="card">Umap: Scale A</a>
+      <a href="umap_scale_b.html" class="card">Umap: Scale B</a>
 </div>
 
 <h2>3D Explorations</h2>
 <div class="grid">
-  <a href="3d_scale_a.html" class="card">
-    <div class="title">Scale A &mdash; 3D</div>
-    <div class="desc">The novel in three dimensions with both reading paths.</div>
-  </a>
-  <a href="3d_scale_b_full.html" class="card">
-    <div class="title">Scale B &mdash; Full 20D</div>
-    <div class="desc">All 20 narrative dimensions projected to 3D.</div>
-  </a>
-  <a href="3d_scale_b_top8var.html" class="card">
-    <div class="title">Scale B &mdash; Top 8 Variance</div>
-    <div class="desc">The 8 most variable dimensions in 3D.</div>
-  </a>
-  <a href="3d_scale_b_pca5.html" class="card">
-    <div class="title">Scale B &mdash; PCA 5</div>
-    <div class="desc">First 5 principal components of narrative DNA.</div>
-  </a>
-  <a href="3d_scale_b_pca8.html" class="card">
-    <div class="title">Scale B &mdash; PCA 8</div>
-    <div class="desc">First 8 principal components of narrative DNA.</div>
-  </a>
-  <a href="3d_scale_b_decorr.html" class="card">
-    <div class="title">Scale B &mdash; Decorrelated</div>
-    <div class="desc">Decorrelated narrative dimensions in 3D.</div>
-  </a>
+      <a href="3d_scale_a.html" class="card">3D: Scale A</a>
+      <a href="3d_scale_b_full.html" class="card">3D: Scale B Full</a>
+      <a href="3d_scale_b_top8var.html" class="card">3D: Scale B Top8Var</a>
+      <a href="3d_scale_b_pca5.html" class="card">3D: Scale B Pca5</a>
+      <a href="3d_scale_b_pca8.html" class="card">3D: Scale B Pca8</a>
+      <a href="3d_scale_b_decorr.html" class="card">3D: Scale B Decorr</a>
 </div>
 
 <footer>
-  Carlos Crespo Macaya &amp; Claude &middot; March 2026 &middot;
+  Carlos Crespo Macaya &amp; Claude &middot; 2026 &middot;
   <a href="https://github.com/macayaven/rayuela">Source Code</a>
 </footer>
 

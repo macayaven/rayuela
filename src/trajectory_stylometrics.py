@@ -31,6 +31,7 @@ from project_config import (
     DistanceMetric, RNG_SEED, N_PERMS,
     z_score as compute_z_score,
     z_standardize, continuity_corrected_percentile, get_all_chapters,
+    filter_excluded_dims,
 )
 
 
@@ -282,7 +283,7 @@ def main():
 
     # --- Scale B: Narrative DNA ---
     if EMB_B_PATH.exists():
-        emb_b = z_standardize(np.load(EMB_B_PATH))
+        emb_b = z_standardize(filter_excluded_dims(np.load(EMB_B_PATH)))
 
         rng = np.random.default_rng(RNG_SEED)
         res = run_test("Scale B (Narrative DNA — explicit semantic decomposition)",

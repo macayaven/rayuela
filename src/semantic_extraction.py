@@ -2,7 +2,7 @@
 """
 Scale B: Semantic Profiling ("Narrative DNA") extraction.
 
-Uses Llama 3.3 70B via vLLM to score each chapter of Rayuela on 20 semantic
+Uses an LLM via vLLM to score each chapter of Rayuela on 20 semantic
 dimensions, producing a structured feature vector per chapter.
 
 Usage (inside Docker container):
@@ -364,10 +364,10 @@ def main():
         available = [m.id for m in models.data]
         print(f"vLLM models available: {available}")
         if args.model not in available:
-            print(f"WARNING: {args.model} not found. Available: {available}")
-            if available:
-                args.model = available[0]
-                print(f"Using: {args.model}")
+            print(f"ERROR: {args.model} not found on vLLM server.")
+            print(f"  Available models: {available}")
+            print(f"  Refusing to fall back — model identity is critical for replication.")
+            sys.exit(1)
     except Exception as e:
         print(f"ERROR connecting to vLLM at {args.api_base}: {e}")
         print("Is the vLLM server running? Start it with:")

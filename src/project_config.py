@@ -249,8 +249,31 @@ DIM_GROUPS = {
     ],
 }
 
-# Flat ordered list matching the grouping above
-DIMS_ORDERED = [d for dims in DIM_GROUPS.values() for d in dims]
+# Flat ordered list matching the grouping above (all 20 — used by replication scripts)
+DIMS_ORDERED_ALL = [d for dims in DIM_GROUPS.values() for d in dims]
+
+# Dimensions excluded after inter-rater reliability testing (Scale B replication).
+# temporal_clarity: ρ = -0.30, κw = -0.16 (anti-correlated between Qwen 3.5 27B
+# and Nemotron 70B). Bootstrap 95% CI entirely negative [-0.47, -0.12].
+# Root cause: rubric polarity confusion ("1=Clear, 10=Fragmented" vs label
+# "Clarity"). Reverse-coding does NOT fix it (ρ only reaches +0.30).
+DIMS_EXCLUDED = {"temporal_clarity"}
+
+# Validated dimensions for all downstream analysis (19D after exclusion)
+DIMS_ORDERED = [d for d in DIMS_ORDERED_ALL if d not in DIMS_EXCLUDED]
+
+# Column indices to keep when loading the 20D .npy matrices
+_VALIDATED_COLS = [i for i, d in enumerate(DIMS_ORDERED_ALL) if d not in DIMS_EXCLUDED]
+
+
+def filter_excluded_dims(matrix: np.ndarray) -> np.ndarray:
+    """
+    Remove excluded dimension columns from a (N, 20) Scale B matrix.
+
+    Use when loading narrative_dna_vectors.npy (which was saved with all 20
+    dimensions) for downstream analysis that should only use validated dims.
+    """
+    return matrix[:, _VALIDATED_COLS]
 
 DIM_LABELS = {
     "existential_questioning": "Existential",
