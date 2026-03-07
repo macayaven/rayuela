@@ -7,10 +7,10 @@ different dimension-reduction strategies affect the projected structure.
 
 Experiments:
   1. Scale A (1024-dim) → 3D UMAP
-  2. Scale B full (20-dim) → 3D UMAP
+  2. Scale B full (19-dim) → 3D UMAP
   3. Scale B top-8 variance (8-dim) → 3D UMAP
-  4. Scale B PCA-5 (20-dim → 5 PCs) → 3D UMAP
-  5. Scale B PCA-8 (20-dim → 8 PCs) → 3D UMAP
+  4. Scale B PCA-5 (19-dim → 5 PCs) → 3D UMAP
+  5. Scale B PCA-8 (19-dim → 8 PCs) → 3D UMAP
   6. Scale B de-correlated (drop redundant dims) → 3D UMAP
 
 Usage (inside Docker container):
@@ -58,7 +58,8 @@ def load_data():
 
     with open(PROJECT_ROOT / "outputs" / "semantic" / "narrative_dna.json") as f:
         dna = json.load(f)
-    dims = dna["dimensions"]
+    from project_config import DIMS_EXCLUDED
+    dims = [d for d in dna["dimensions"] if d not in DIMS_EXCLUDED]
     dna_chapters = dna["chapters"]
     scores = {ch["chapter"]: ch["scores"] for ch in dna_chapters}
     matrix_b = np.array([[scores[i + 1][d] for d in dims] for i in range(155)])
@@ -261,13 +262,13 @@ def main():
         print(f"  Saved: 3d_scale_a.html")
         return coords
 
-    # --- Scale B full: 20-dim → 3D ---
+    # --- Scale B full: 19-dim → 3D ---
     def exp_scale_b_full():
-        print("\n=== Scale B Full: 20-dim → 3D UMAP (euclidean) ===")
+        print("\n=== Scale B Full: 19-dim → 3D UMAP (euclidean) ===")
         coords = run_umap_3d(matrix_b, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
             coords, chapters_meta,
-            "Scale B Full: Narrative DNA (20-dim → 3D)",
+            "Scale B Full: Narrative DNA (19-dim → 3D)",
             "Euclidean metric · All 20 dimensions",
         )
         fig.write_html(OUTPUT_DIR / "3d_scale_b_full.html")
@@ -292,7 +293,7 @@ def main():
     # --- Scale B PCA-5 ---
     def exp_scale_b_pca5():
         projected, explained = reduce_pca(matrix_b, k=5)
-        print(f"\n=== Scale B PCA-5: 20-dim → 5 PCs → 3D UMAP ===")
+        print(f"\n=== Scale B PCA-5: 19-dim → 5 PCs → 3D UMAP ===")
         print(f"  Variance explained: {explained*100:.1f}%")
         coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
@@ -307,7 +308,7 @@ def main():
     # --- Scale B PCA-8 ---
     def exp_scale_b_pca8():
         projected, explained = reduce_pca(matrix_b, k=8)
-        print(f"\n=== Scale B PCA-8: 20-dim → 8 PCs → 3D UMAP ===")
+        print(f"\n=== Scale B PCA-8: 19-dim → 8 PCs → 3D UMAP ===")
         print(f"  Variance explained: {explained*100:.1f}%")
         coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(

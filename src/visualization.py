@@ -4,7 +4,7 @@ Phase 4: UMAP Dimensionality Reduction & Trajectory Visualization.
 
 Produces interactive Plotly visualizations of the two scales:
   - Scale A (texture embeddings, 1024-dim → 2D)
-  - Scale B (narrative DNA, 20-dim → 2D)
+  - Scale B (narrative DNA, 19-dim → 2D)
 
 Each plot shows:
   1. Chapters colored by section and expendability
@@ -83,7 +83,8 @@ def load_scale_b() -> tuple[np.ndarray | None, list[dict] | None]:
     if not chapters:
         return None, None
 
-    dims = data["dimensions"]
+    from project_config import DIMS_EXCLUDED
+    dims = [d for d in data["dimensions"] if d not in DIMS_EXCLUDED]
     vectors = np.array(
         [[ch["scores"][d] for d in dims] for ch in chapters],
         dtype=np.float32,
@@ -248,7 +249,7 @@ def make_comparison_figure(
     """
     fig = make_subplots(
         rows=1, cols=2,
-        subplot_titles=("Scale A: Texture (1024-dim)", "Scale B: Narrative DNA (20-dim)"),
+        subplot_titles=("Scale A: Texture (1024-dim)", "Scale B: Narrative DNA (19-dim)"),
         horizontal_spacing=0.08,
     )
 
