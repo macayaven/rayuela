@@ -4,74 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ARTICLE PART1 MEDIUM</title>
-  
-<style>
-  body {
-    font-family: Georgia, 'Times New Roman', serif;
-    max-width: 740px;
-    margin: 2rem auto;
-    padding: 0 1rem;
-    line-height: 1.8;
-    color: #292929;
-    font-size: 18px;
-  }
+  <style>
+  body { font-family: Georgia, 'Times New Roman', serif; max-width: 740px; margin: 2rem auto; padding: 0 1rem; line-height: 1.8; color: #292929; font-size: 18px; }
   h1 { font-size: 2.2rem; margin-bottom: 0.3rem; line-height: 1.2; }
   h2 { font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; }
-  p { margin-bottom: 1.2rem; }
-  em { font-style: italic; }
-  strong { font-weight: 700; }
-  blockquote {
-    border-left: 3px solid #ccc;
-    padding-left: 1rem;
-    color: #555;
-    margin: 1.5rem 0;
-  }
-  table {
-    border-collapse: collapse;
-    margin: 1.5rem 0;
-    width: 100%;
-    font-size: 0.95rem;
-  }
-  th, td {
-    border: 1px solid #ddd;
-    padding: 0.5rem 0.75rem;
-    text-align: left;
-  }
+  p { margin-bottom: 1.2rem; } em { font-style: italic; } strong { font-weight: 700; }
+  blockquote { border-left: 3px solid #ccc; padding-left: 1rem; color: #555; margin: 1.5rem 0; }
+  table { border-collapse: collapse; margin: 1.5rem 0; width: 100%; font-size: 0.95rem; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem 0.75rem; text-align: left; }
   th { background: #f5f5f5; font-weight: 600; }
   hr { border: none; border-top: 1px solid #ddd; margin: 2rem 0; }
-  img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 1.5rem auto;
-    border-radius: 4px;
-  }
-  .figure-caption {
-    font-size: 0.9rem;
-    color: #666;
-    font-style: italic;
-    margin-top: -1rem;
-    margin-bottom: 2rem;
-    text-align: center;
-  }
-  ul, ol { margin-bottom: 1.2rem; padding-left: 1.5rem; }
-  li { margin-bottom: 0.4rem; }
-  a { color: #1a8917; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  code { background: #f5f5f5; padding: 0.15rem 0.3rem; border-radius: 3px; font-size: 0.9em; }
-  .byline { color: #757575; font-size: 1rem; margin-bottom: 2rem; }
-  .methodology-note {
-    background: #f9f9f9;
-    border: 1px solid #eee;
-    padding: 1rem 1.2rem;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    color: #555;
-    margin-top: 2rem;
-    line-height: 1.6;
-  }
+  img { max-width: 100%; height: auto; display: block; margin: 1.5rem auto; border-radius: 4px; }
+  .figure-caption { font-size: 0.9rem; color: #666; font-style: italic; margin-top: -1rem; margin-bottom: 2rem; text-align: center; }
+  ul, ol { margin-bottom: 1.2rem; padding-left: 1.5rem; } li { margin-bottom: 0.4rem; }
+  a { color: #1a8917; text-decoration: none; } a:hover { text-decoration: underline; }
+  .methodology-note { background: #f9f9f9; border: 1px solid #eee; padding: 1rem 1.2rem; border-radius: 4px; font-size: 0.85rem; color: #555; margin-top: 2rem; line-height: 1.6; }
 </style>
-
 </head>
 <body>
 <h1>What Does a Novel Look Like From the Inside?</h1>
@@ -81,7 +29,7 @@
 <p>Readers and scholars have argued about these two paths for sixty years. Is the hopscotch order designed for thematic continuity — deeper connections that the linear order misses? Or is it something else entirely?</p>
 <p>We set out to answer this empirically. We converted every chapter of <em>Rayuela</em> into mathematical representations using AI, then traced both reading paths through that mathematical space. We measured each chapter in four complementary ways — from a machine-learning model&rsquo;s undifferentiated impression of the whole passage, through content-free stylistic features and LLM-perceived style, to an explicit 19-dimensional scoring of narrative content. Then we tested both reading orders against 5,000 random alternatives to determine whether they could have arisen by chance.</p>
 <p>What we found surprised us.</p>
-<p><img alt="Each of the 155 chapters is a point in 3D space; chapters that the AI perceives as similar sit close together. The green line traces the linear path; the red dashed line traces the hopscotch." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/figure1_3d_novel.png"></p>
+<p><img alt="Each of the 155 chapters is a point in 3D space; chapters that the AI perceives as similar sit close together. The green line traces the linear path; the red dashed line traces the hopscotch." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p1_figure1_3d_novel.png"></p>
 <p class="figure-caption">Figure 1 — The Novel in 3D. Each chapter is a point in space; chapters that the AI perceives as similar — in vocabulary, rhythm, theme, and tone — sit close together. The green line traces the linear path; the red dashed line traces the hopscotch. ([Interactive version](https://carloscrespomacaya.com/rayuela/3d_scale_a.html))</p>
 
 <h2>The Invisible Surgery</h2>
@@ -97,7 +45,7 @@
 <p><strong>The semantic lens (Scale B)</strong> captures what the prose says, explicitly. The same language model scored every chapter on 19 named dimensions — existential questioning, love and desire, humor and irony, interiority, spatial grounding, language experimentation, and 13 others — producing what we call a <strong>narrative DNA</strong> profile: a 19-number fingerprint of each chapter&rsquo;s thematic content. (An original 20th dimension, temporal clarity, was excluded after inter-rater testing showed its rubric was ambiguous — two different models interpreted it in opposite ways.)</p>
 <p>Why four scales? Because no single measurement can distinguish style from meaning. The four instruments form a gradient — from undifferentiated impression (Scale A) through pure form (A&rsquo;) and perceived style (B&rsquo;) to explicit content (B). If a finding appears at one end of the gradient but not the other, the gradient itself tells us what&rsquo;s driving it.</p>
 <p>We validated the semantic lens with Chapter 68, the famous Gliglico chapter, written entirely in a language Cortázar invented. The model scored it: <em>language experimentation = 10, love and desire = 8, spatial grounding = 1, dialogue density = 1</em>. It couldn&rsquo;t read the invented language — nobody can — but it appeared to understand what the invented language was <em>for</em>. (A caveat: the model may have encountered commentary about this famous chapter during training, so this is a plausibility check rather than proof of literary comprehension.)</p>
-<p><img alt="Left: chapters in holistic embedding space. Right: chapters in semantic space." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/figure2_umap_comparison.png"></p>
+<p><img alt="Left: chapters in holistic embedding space. Right: chapters in semantic space." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p1_figure2_umap_comparison.png"></p>
 <p class="figure-caption">Figure 2 — Two Ways to See the Same Novel. Left: chapters in holistic space (the AI's undifferentiated impression). Right: chapters in semantic space (19 explicit dimensions). In holistic space, the novel's three sections overlap completely — the AI sees more similarity than difference across Paris, Buenos Aires, and the expendable chapters. In semantic space, they begin to separate. The divisions readers feel seem to be about specific thematic content, not overall impression. ([Interactive version](https://carloscrespomacaya.com/rayuela/umap_comparison.html))</p>
 
 <h2>The Test</h2>
@@ -143,7 +91,7 @@
 <p><em>Positive = smoother than random. Bold = statistically significant after Bonferroni correction for 8 primary smoothness tests at α = 0.05 (threshold ≈ 2.5σ).</em></p>
 <p>The hopscotch path tells a gradient story. Through the <strong>holistic lens</strong> — the AI&rsquo;s undifferentiated impression — the hopscotch is moderately smoother than chance (+2.8σ, the only hopscotch result that survives correction for multiple testing, stable across nine independent random seeds). Through the <strong>stylometric</strong> and <strong>LLM stylistic</strong> lenses, there&rsquo;s a faint positive signal (+1.1σ and +1.3σ) — suggestive but not statistically significant. And through the <strong>semantic lens</strong> — the 19 explicit dimensions of narrative content — the hopscotch is indistinguishable from a random shuffle (−0.3σ).</p>
 <p>The pattern is striking: as measurement moves from holistic to explicit, the hopscotch signal fades. Something in the ordering appears intentional — but it&rsquo;s not the thematic content. We call it <strong>atmospheric coherence</strong>: a quality the holistic lens detects but the semantic decomposition cannot name.</p>
-<p><img alt="Each path is tested against its own null distribution: linear vs shuffled Ch.1-56, hopscotch vs shuffled all 155." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/figure3_permutation.png"></p>
+<p><img alt="Each path is tested against its own null distribution: linear vs shuffled Ch.1-56, hopscotch vs shuffled all 155." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p1_figure3_permutation.png"></p>
 <p class="figure-caption">Figure 3 — Was the Reading Order Designed? Each path is tested against its own null distribution (linear: shuffled Ch.1-56; hopscotch: shuffled all 155 chapters). The linear path is far smoother than any random ordering on all four scales. The hopscotch falls within the random range on the semantic scale — but is moderately smoother than random (~2.8σ) on the holistic scale. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_permutation.html))</p>
 
 <h2>The Shape of Disruption</h2>
@@ -154,11 +102,11 @@
 <p>What does this mean?</p>
 <p>The data suggests Cortázar didn&rsquo;t design the hopscotch for smooth thematic reading. He seems to have designed it for <strong>collision</strong> — at the level of explicit narrative content, consecutive chapters are more abruptly juxtaposed than a random shuffle would produce. But at the level of holistic impression — the subtle, undifferentiated qualities that a reader absorbs without naming — there is a faint intentional thread. The hopscotch appears to jar you thematically while maintaining a quiet undertow of atmospheric coherence.</p>
 <p>The weaving pattern makes this visible. In the linear reading, you progress through Paris (chapters 1-36), then Buenos Aires (37-56), in clean blocks. In the hopscotch, Cortázar interleaves all three sections from the first step — Paris, expendable, Buenos Aires, expendable, Paris — deliberately fragmenting the reader&rsquo;s sense of place and time.</p>
-<p><img alt="Top: the linear path (solid blocks of blue, then orange). Bottom: the hopscotch (alternating colors from all three sections)." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/figure4_weaving.png"></p>
+<p><img alt="Top: the linear path (solid blocks of blue, then orange). Bottom: the hopscotch (alternating colors from all three sections)." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p1_figure4_weaving.png"></p>
 <p class="figure-caption">Figure 4 — Section Weaving. Top: the linear path (solid blocks of blue, then orange). Bottom: the hopscotch (a kaleidoscope of alternating colors). The hopscotch never lets you stay in one world for long. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_weaving.html))</p>
 
 <p>Trace any single dimension of meaning along both paths and the difference is striking. Take <em>tension and anxiety</em>: the linear path builds and releases in long waves, like a tide. The hopscotch path spikes and drops in arrhythmic pulses.</p>
-<p><img alt="Six dimensions of meaning traced along both reading paths." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/figure5_emotional_arcs.png"></p>
+<p><img alt="Six dimensions of meaning traced along both reading paths." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p1_figure5_emotional_arcs.png"></p>
 <p class="figure-caption">Figure 5 — Emotional Arcs. Six dimensions of meaning traced along both reading paths. The linear path builds in waves. The hopscotch is near-random in its explicit narrative content — the collision appears to be the design. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_journey.html))</p>
 
 <p>The reader who follows the hopscotch seems meant to experience something like the disorientation of Oliveira himself — wandering between cities and selves and modes of being. The collisions between chapters may be the message. You&rsquo;re not supposed to settle in. You&rsquo;re supposed to be thrown.</p>

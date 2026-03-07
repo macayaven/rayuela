@@ -32,7 +32,7 @@ Each dimension is scored 1-10 with an explicit rubric. For example, *humor and i
 
 We call the resulting 19-number profile of each chapter its **narrative DNA**.
 
-![The full 155-chapter x 19-dimension heatmap: every chapter scored on every dimension.](figure1_heatmap.png)
+![The full 155-chapter x 19-dimension heatmap: every chapter scored on every dimension.](p2_figure1_heatmap.png)
 *Figure 1 — Narrative DNA. Each row is a chapter; each column is a dimension. Red means high, blue means low. The expendable chapters (57-155) diversify dramatically — they are the laboratory of the novel. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_heatmap.html))*
 
 ## The Gliglico Test
@@ -58,19 +58,19 @@ The three sections of the novel — Paris ("Del lado de allá"), Buenos Aires ("
 - **Buenos Aires**: similar emotional register but lower La Maga presence (she's absent), more spatial grounding, more dialogue. The real world pressing in.
 - **Expendable chapters**: break free of Oliveira's dominance. Intertextual density rises; metafiction spikes; humor becomes more prevalent. This is where Cortázar experiments most freely.
 
-![Box plots showing how each dimension distributes across the three sections.](figure2_sections.png)
+![Box plots showing how each dimension distributes across the three sections.](p2_figure2_sections.png)
 *Figure 2 — Section Profiles. The dimensions that most differentiate the three sections are La Maga presence, character density, and dialogue density. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_sections.html))*
 
 The dimensions also reveal a hidden grammar — which traits co-occur in Cortázar's writing. Oliveira's centrality and interiority are tightly linked (r ~ 0.7): when Oliveira dominates, the prose turns inward. Humor and existential questioning are surprisingly independent: Cortázar can be deeply philosophical and deeply funny at the same time.
 
-![Dimension correlation matrix.](figure3_correlation.png)
+![Dimension correlation matrix.](p2_figure3_correlation.png)
 *Figure 3 — Dimension Correlation Matrix. The "grammar" of Cortázar's writing modes. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_correlation.html))*
 
 ## Chapter Fingerprints
 
 Each chapter's 19-dimensional profile is a unique fingerprint. Compare a few:
 
-![Radar charts showing the narrative fingerprints of notable chapters.](figure4_radar.png)
+![Radar charts showing the narrative fingerprints of notable chapters.](p2_figure4_radar.png)
 *Figure 4 — Narrative Fingerprints. Each spoke is one of the 19 dimensions. Chapter 68 (Gliglico) concentrates all its energy in two dimensions. Chapter 1 is expansive. Chapter 93 (Morelli's literary theory) lights up metafiction and intertextuality. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_radar.html))*
 
 The visual difference between chapters is the difference the hopscotch path exploits. When Cortázar places Chapter 1 (Oliveira searching for La Maga) next to Chapter 93 (a philosophical meditation on love and language), the jump between those two fingerprints is what creates the collision. The reader's mind has to bridge the gap. That bridging — that work — may be the hopscotch experience.
@@ -164,7 +164,7 @@ They also open a curious possibility: if you know *which* textual elements drive
 
 The most direct way to see the collision principle is to lay the entire novel out twice — once in linear order, once in hopscotch order — and look at the patterns.
 
-![Side-by-side heatmaps: linear order (smooth gradients) vs hopscotch order (rapid alternation).](figure5_dual_heatmap.png)
+![Side-by-side heatmaps: linear order (smooth gradients) vs hopscotch order (rapid alternation).](p2_figure5_dual_heatmap.png)
 *Figure 5 — Two Reading Orders, Same Data. Left: linear order shows smooth gradients — similar chapters adjacent. Right: hopscotch order shows rapid color alternation — markedly different chapters placed side by side. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_dual_heatmap.html))*
 
 The linear heatmap looks like a landscape: rolling hills, gradual transitions, coherent regions. The hopscotch heatmap alternates much more abruptly — starkly different profiles juxtaposed step after step. The data makes visible what readers have always felt.

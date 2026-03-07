@@ -12,7 +12,7 @@ We set out to answer this empirically. We converted every chapter of *Rayuela* i
 
 What we found surprised us.
 
-![Each of the 155 chapters is a point in 3D space; chapters that the AI perceives as similar sit close together. The green line traces the linear path; the red dashed line traces the hopscotch.](figure1_3d_novel.png)
+![Each of the 155 chapters is a point in 3D space; chapters that the AI perceives as similar sit close together. The green line traces the linear path; the red dashed line traces the hopscotch.](p1_figure1_3d_novel.png)
 *Figure 1 — The Novel in 3D. Each chapter is a point in space; chapters that the AI perceives as similar — in vocabulary, rhythm, theme, and tone — sit close together. The green line traces the linear path; the red dashed line traces the hopscotch. ([Interactive version](https://carloscrespomacaya.com/rayuela/3d_scale_a.html))*
 
 ## The Invisible Surgery
@@ -41,7 +41,7 @@ Why four scales? Because no single measurement can distinguish style from meanin
 
 We validated the semantic lens with Chapter 68, the famous Gliglico chapter, written entirely in a language Cortázar invented. The model scored it: *language experimentation = 10, love and desire = 8, spatial grounding = 1, dialogue density = 1*. It couldn't read the invented language — nobody can — but it appeared to understand what the invented language was *for*. (A caveat: the model may have encountered commentary about this famous chapter during training, so this is a plausibility check rather than proof of literary comprehension.)
 
-![Left: chapters in holistic embedding space. Right: chapters in semantic space.](figure2_umap_comparison.png)
+![Left: chapters in holistic embedding space. Right: chapters in semantic space.](p1_figure2_umap_comparison.png)
 *Figure 2 — Two Ways to See the Same Novel. Left: chapters in holistic space (the AI's undifferentiated impression). Right: chapters in semantic space (19 explicit dimensions). In holistic space, the novel's three sections overlap completely — the AI sees more similarity than difference across Paris, Buenos Aires, and the expendable chapters. In semantic space, they begin to separate. The divisions readers feel seem to be about specific thematic content, not overall impression. ([Interactive version](https://carloscrespomacaya.com/rayuela/umap_comparison.html))*
 
 ## The Test
@@ -65,7 +65,7 @@ The hopscotch path tells a gradient story. Through the **holistic lens** — the
 
 The pattern is striking: as measurement moves from holistic to explicit, the hopscotch signal fades. Something in the ordering appears intentional — but it's not the thematic content. We call it **atmospheric coherence**: a quality the holistic lens detects but the semantic decomposition cannot name.
 
-![Each path is tested against its own null distribution: linear vs shuffled Ch.1-56, hopscotch vs shuffled all 155.](figure3_permutation.png)
+![Each path is tested against its own null distribution: linear vs shuffled Ch.1-56, hopscotch vs shuffled all 155.](p1_figure3_permutation.png)
 *Figure 3 — Was the Reading Order Designed? Each path is tested against its own null distribution (linear: shuffled Ch.1-56; hopscotch: shuffled all 155 chapters). The linear path is far smoother than any random ordering on all four scales. The hopscotch falls within the random range on the semantic scale — but is moderately smoother than random (~2.8σ) on the holistic scale. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_permutation.html))*
 
 ## The Shape of Disruption
@@ -84,12 +84,12 @@ The data suggests Cortázar didn't design the hopscotch for smooth thematic read
 
 The weaving pattern makes this visible. In the linear reading, you progress through Paris (chapters 1-36), then Buenos Aires (37-56), in clean blocks. In the hopscotch, Cortázar interleaves all three sections from the first step — Paris, expendable, Buenos Aires, expendable, Paris — deliberately fragmenting the reader's sense of place and time.
 
-![Top: the linear path (solid blocks of blue, then orange). Bottom: the hopscotch (alternating colors from all three sections).](figure4_weaving.png)
+![Top: the linear path (solid blocks of blue, then orange). Bottom: the hopscotch (alternating colors from all three sections).](p1_figure4_weaving.png)
 *Figure 4 — Section Weaving. Top: the linear path (solid blocks of blue, then orange). Bottom: the hopscotch (a kaleidoscope of alternating colors). The hopscotch never lets you stay in one world for long. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_weaving.html))*
 
 Trace any single dimension of meaning along both paths and the difference is striking. Take *tension and anxiety*: the linear path builds and releases in long waves, like a tide. The hopscotch path spikes and drops in arrhythmic pulses.
 
-![Six dimensions of meaning traced along both reading paths.](figure5_emotional_arcs.png)
+![Six dimensions of meaning traced along both reading paths.](p1_figure5_emotional_arcs.png)
 *Figure 5 — Emotional Arcs. Six dimensions of meaning traced along both reading paths. The linear path builds in waves. The hopscotch is near-random in its explicit narrative content — the collision appears to be the design. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_journey.html))*
 
 The reader who follows the hopscotch seems meant to experience something like the disorientation of Oliveira himself — wandering between cities and selves and modes of being. The collisions between chapters may be the message. You're not supposed to settle in. You're supposed to be thrown.
