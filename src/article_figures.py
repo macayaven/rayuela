@@ -84,7 +84,7 @@ def load_all_data():
 
 def fig_heatmap(dna_chapters, dims, scores, meta_by_num):
     """
-    Heatmap: chapters (rows) × 20 dimensions (columns).
+    Heatmap: chapters (rows) × 19 dimensions (columns).
 
     Rows ordered by chapter number, with section color annotation.
     Columns grouped by dimension category.
@@ -165,7 +165,7 @@ def fig_heatmap(dna_chapters, dims, scores, meta_by_num):
 
     fig.update_layout(
         title=dict(
-            text="Narrative DNA: 20-Dimensional Profile of Each Chapter",
+            text="Narrative DNA: 19-Dimensional Profile of Each Chapter",
             font=dict(size=16),
         ),
         xaxis=dict(
@@ -403,7 +403,7 @@ def fig_trajectory_smoothness(scores, emb_a, chapters_meta):
 
 def fig_radar_fingerprints(scores):
     """
-    Radar (polar) charts comparing the 20-dimensional profiles of
+    Radar (polar) charts comparing the 19-dimensional profiles of
     notable chapters — the "narrative fingerprints."
     """
     # Notable chapters with descriptions
@@ -465,7 +465,7 @@ def fig_radar_fingerprints(scores):
 
 def fig_correlation_matrix(scores):
     """
-    Correlation matrix of the 20 narrative dimensions across all chapters.
+    Correlation matrix of the 19 narrative dimensions across all chapters.
 
     Reveals which dimensions co-occur — the "grammar" of Cortázar's writing modes.
     """
@@ -759,7 +759,7 @@ def fig_dual_heatmap(scores, meta_by_num):
         title=dict(
             text=(
                 "The Same Novel, Two Reading Orders: Narrative DNA Heatmaps<br>"
-                "<sub>Each row is a reading step; columns are the 20 semantic dimensions. "
+                "<sub>Each row is a reading step; columns are the 19 semantic dimensions. "
                 "Linear reading shows smooth gradients; hopscotch creates deliberate discontinuity.</sub>"
             ),
             font=dict(size=14),
