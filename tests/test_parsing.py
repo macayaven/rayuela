@@ -75,8 +75,7 @@ def test_extract_epigraph_without_body_returns_empty_string() -> None:
 def test_parse_epub_builds_expected_shape(tmp_path: Path) -> None:
     epub_path = tmp_path / "mini.epub"
     chapter_xhtml = (
-        "<html><body><h3>1</h3><p>Texto base.</p>"
-        "<p class='derecha'>73</p></body></html>"
+        "<html><body><h3>1</h3><p>Texto base.</p><p class='derecha'>73</p></body></html>"
     )
     tablero = "<html><body><p>Intro</p>\n73-1-2-116-3\n84-4-71</body></html>"
     epigraph = "<html><body><h2>Titulo</h2><p>Epígrafe</p></body></html>"
@@ -107,8 +106,7 @@ def test_main_writes_output_json(tmp_path: Path, capsys: pytest.CaptureFixture[s
     epub_path = tmp_path / "mini.epub"
     output_path = tmp_path / "parsed.json"
     chapter_xhtml = (
-        "<html><body><h3>1</h3><p>Texto base.</p>"
-        "<p class='derecha'>73</p></body></html>"
+        "<html><body><h3>1</h3><p>Texto base.</p><p class='derecha'>73</p></body></html>"
     )
     tablero = "<html><body><p>Intro</p>\n73-1-2-116-3\n84-4-71</body></html>"
     epigraph = "<html><body><h2>Titulo</h2><p>Epígrafe</p></body></html>"

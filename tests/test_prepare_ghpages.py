@@ -53,8 +53,7 @@ def test_main_copies_selected_files_and_builds_index(
     docs_dir = tmp_path / "docs"
     source_dir.mkdir()
     source_html = (
-        '<script type="text/javascript">/**\n* plotly.js v3.3.1\npayload</script>'
-        "<div>figure</div>"
+        '<script type="text/javascript">/**\n* plotly.js v3.3.1\npayload</script><div>figure</div>'
     )
     (source_dir / "article_heatmap.html").write_text(source_html, encoding="utf-8")
 

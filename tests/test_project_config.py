@@ -1,9 +1,30 @@
 from __future__ import annotations
 
+import importlib
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
-import project_config
+ROOT = Path(__file__).resolve().parents[1]
+DATA_PATH = ROOT / "data" / "rayuela_raw.json"
+
+if not DATA_PATH.exists():
+    DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DATA_PATH.write_text(
+        json.dumps(
+            {
+                "reading_paths": {
+                    "linear": list(range(1, 57)),
+                    "hopscotch": [73, 1, 2, 116],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+project_config = importlib.import_module("project_config")
 
 
 def test_distance_metric_signs() -> None:
@@ -23,7 +44,7 @@ def test_z_score_handles_metric_direction() -> None:
 
 def test_z_score_rejects_non_enum_metric() -> None:
     with pytest.raises(TypeError):
-        project_config.z_score(1.0, np.array([1.0]), "cosine")  # type: ignore[arg-type]
+        project_config.z_score(1.0, np.array([1.0]), "cosine")
 
 
 def test_z_score_returns_zero_when_null_distribution_has_no_variance() -> None:
@@ -72,7 +93,7 @@ def test_continuity_corrected_percentile_handles_euclidean_and_type_errors() -> 
 
     assert percentile == pytest.approx(75.0)
     with pytest.raises(TypeError):
-        project_config.continuity_corrected_percentile(1.0, null_dist, "euclidean")  # type: ignore[arg-type]
+        project_config.continuity_corrected_percentile(1.0, null_dist, "euclidean")
 
 
 def test_get_reading_paths_and_all_chapters_are_loaded() -> None:
