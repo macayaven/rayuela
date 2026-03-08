@@ -111,7 +111,7 @@ docker compose run --rm rayuela python scripts/prepare_ghpages.py
 ## Quality Gates
 
 - GitHub Actions enforces four checks on pull requests: pre-commit, type checking, tests with an 85% coverage threshold, and docstring coverage with an 85% threshold.
-- The CI-safe quality scope currently covers [`src/parsing.py`](src/parsing.py), [`src/project_config.py`](src/project_config.py), [`scripts/md_to_html.py`](scripts/md_to_html.py), and [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py).
+- The CI-safe quality scope currently covers [`src/parsing.py`](src/parsing.py), [`src/project_config.py`](src/project_config.py), [`src/reconstruction_contract.py`](src/reconstruction_contract.py), [`scripts/md_to_html.py`](scripts/md_to_html.py), and [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py).
 - Local setup:
 
 ```bash
@@ -120,15 +120,40 @@ python3 -m pre_commit install
 python3 -m pre_commit run --all-files
 python3 -m mypy
 python3 -m pytest
-python3 -m interrogate src/parsing.py src/project_config.py scripts/md_to_html.py scripts/prepare_ghpages.py
+python3 -m interrogate src/parsing.py src/project_config.py src/reconstruction_contract.py scripts/md_to_html.py scripts/prepare_ghpages.py
 ```
 
 - The source-controlled GitHub ruleset definition lives at [`.github/rulesets/main-quality-gate.json`](.github/rulesets/main-quality-gate.json).
 
-## Corpus Extension
+## Reconstruction Contract
 
-The repo is no longer only about `Rayuela`. [`src/corpus_cleanup.py`](src/corpus_cleanup.py), [`src/corpus_stylometrics.py`](src/corpus_stylometrics.py), and [`src/corpus_semantic.py`](src/corpus_semantic.py) extend the same methods to a broader Latin American corpus stored in [`data/corpus/`](data/corpus/).
+Part 3 reconstruction runs are rooted under [`outputs/reconstruction/`](outputs/reconstruction/). Phase 0 establishes an immutable run policy:
 
-## Data Note
+- each run writes its manifest to `outputs/reconstruction/runs/<run_id>/manifest.json`
+- each manifest is mirrored to `outputs/reconstruction/manifests/<run_id>.json`
+- failed runs are retained in place and their run IDs are never reused
+- all manifest paths are stored project-relative so the run can be replayed on another checkout
 
-This repository includes raw and derived literary texts inside [`data/`](data/). Before redistributing the project or reusing the source texts elsewhere, verify that you have the rights to do so.
+The required manifest fields are:
+
+- `schema_version`
+- `run_id`
+- `phase`
+- `status`
+- `created_at`
+- `updated_at`
+- `git_sha`
+- `model_id`
+- `prompt_template_id`
+- `seed`
+- `config_hash`
+- `corpus_manifest`
+- `split_manifest`
+- `paths`
+- `error_message`
+
+Phase 0 dry run:
+
+```bash
+python3 src/reconstruction_contract.py --run-id phase0-dry-run --phase phase-0-quality-envelope
+```

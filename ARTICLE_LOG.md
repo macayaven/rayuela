@@ -209,3 +209,37 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **For the article**: We didn't just flag a bad dimension and move on — we re-ran everything. The z-scores held. The figures held. The cross-scale correlations actually improved. That's the difference between a finding that depends on a specific configuration and one that reflects something real in the text.
 
 **Figures regenerated**: `article_images/figure{3,4,5,6,7,8,9,10}_*.png`, all `docs/*.html` (GitHub Pages).
+
+**Session end note**: Commit `e0fb4e9` pushed to origin. Articles pending text update (20→19D references + new IRR section) — Claude App prompt prepared for Carlos.
+
+### 2026-03-04 — Corpus Cleanup and the Disentanglement Question
+
+**Phase**: Phase 8A — Corpus Cleanup + External Review
+
+**What happened**: Built `src/corpus_cleanup.py` to clean 10 Latin American literary works (García Márquez, Sábato, Cortázar ×2, Borges ×2, Bolaño, Cabrera Infante, Rulfo, Quiroga) from various source formats (ePub, PDF, scanned). Each work required unique cleanup rules: Borges stories were segmented from single blobs using dual-signal detection (year markers + paragraph boundaries), Bolaño's PDF had broken words ("M exicanos"), Cabrera Infante had 428 running headers, and Rulfo's text was 60% critical apparatus. Final corpus: 152 chapters, 832K words, zero artifacts. Sent the Phase 8 plan to Gemini 3 Flash Preview and GPT-5.3 Codex for independent review.
+
+**Key finding/decision**: Both reviewers converged on a critical reframing: what we have is "operational decoupling" (A' measures style, B measures content), not mathematical disentanglement (Mantel r=0.42 shows they're partially coupled). Both recommended Path 1 (prompt-based transfer with generate-score-revise loop) as the right first approach, with tolerance bands instead of exact numeric targets. The corpus is sufficient for a pilot but weak for per-author generalization claims — single-work authors confound author style with book/topic/period.
+
+**For the article**: Before we could transfer anyone's style, we had to solve a more mundane problem: getting the text into shape. Ten novels, ten different data quality nightmares. Borges's stories were concatenated into a single wall of text. Bolaño's PDF had split words across line breaks. Rulfo's file was two-thirds critical apparatus and one-third novel. The cleanup took longer than the analysis — as it should. In computational literary analysis, data quality isn't a preliminary step. It's the foundation.
+
+**Visuals**: None (infrastructure phase).
+
+---
+
+### 2026-03-08 — Part 3 Phase 0: Quality Envelope and Observability
+
+**Phase**: Part 3 — Phase 0 (Quality Envelope and Observability)
+
+**What happened**: Implemented the first reconstruction module, `src/reconstruction_contract.py`, to centralize the Part 3 output tree, enforce project-relative paths, seed Python/NumPy/torch/splitter state deterministically, and persist immutable run manifests under `outputs/reconstruction/`. Added `tests/test_reconstruction_contract.py` first, then wired the new module into the coverage and mypy scopes in `pyproject.toml`, documented the manifest contract in `README.md`, and wrote a dry-run manifest to `outputs/reconstruction/runs/phase0-dry-run-20260308a/manifest.json`.
+
+**Key decision**: Failed runs must remain inspectable and run IDs must be immutable. The contract mirrors each run manifest into `outputs/reconstruction/manifests/` for global lookup, but the per-run directory under `outputs/reconstruction/runs/<run_id>/` remains the source of truth and is never reused.
+
+**Verification**:
+- `pytest tests/test_reconstruction_contract.py -q` passed
+- full `pytest -q` passed
+- `ruff check src/reconstruction_contract.py tests/test_reconstruction_contract.py` passed
+- full `ruff check src tests scripts` is still red because of pre-existing repo-wide lint debt outside the reconstruction files
+- full `mypy` passed
+- dry-run manifest write passed without generation
+
+**For Part 3**: The experiment now has a concrete run contract before any generation begins. Every later phase can inherit the same metadata envelope: git SHA, seed bundle, config hash, corpus manifest, split manifest, and run-local artifact paths.

@@ -14,6 +14,7 @@ branch = true
 include = [
   "src/parsing.py",
   "src/project_config.py",
+  "src/reconstruction_contract.py",
   "scripts/md_to_html.py",
   "scripts/prepare_ghpages.py",
 ]
@@ -46,6 +47,7 @@ python_version = "3.12"
 files = [
   "src/parsing.py",
   "src/project_config.py",
+  "src/reconstruction_contract.py",
   "scripts/md_to_html.py",
   "scripts/prepare_ghpages.py",
   "tests",
