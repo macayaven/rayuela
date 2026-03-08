@@ -24,17 +24,21 @@ Output: outputs/figures/3d_*.html
 
 import argparse
 import json
-import numpy as np
-from pathlib import Path
 
+import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
 import umap
 
 from project_config import (
-    PROJECT_ROOT, OUTPUT_FIGURES_DIR,
-    TABLERO, LINEAR_ORDER, SECTION_COLORS, SECTION_SHORT,
-    UMAP_N_NEIGHBORS, UMAP_MIN_DIST, DistanceMetric,
+    LINEAR_ORDER,
+    OUTPUT_FIGURES_DIR,
+    PROJECT_ROOT,
+    SECTION_COLORS,
+    SECTION_SHORT,
+    TABLERO,
+    UMAP_MIN_DIST,
+    UMAP_N_NEIGHBORS,
+    DistanceMetric,
 )
 
 # ---------------------------------------------------------------------------
@@ -259,7 +263,7 @@ def main():
             "Cosine metric · Each point is a chapter colored by section",
         )
         fig.write_html(OUTPUT_DIR / "3d_scale_a.html")
-        print(f"  Saved: 3d_scale_a.html")
+        print("  Saved: 3d_scale_a.html")
         return coords
 
     # --- Scale B full: 19-dim → 3D ---
@@ -272,7 +276,7 @@ def main():
             "Euclidean metric · All 20 dimensions",
         )
         fig.write_html(OUTPUT_DIR / "3d_scale_b_full.html")
-        print(f"  Saved: 3d_scale_b_full.html")
+        print("  Saved: 3d_scale_b_full.html")
         return coords
 
     # --- Scale B top-8 variance ---
@@ -287,13 +291,13 @@ def main():
             f"Kept: {', '.join(d.replace('_',' ').title() for d in sel_dims)}",
         )
         fig.write_html(OUTPUT_DIR / "3d_scale_b_top8var.html")
-        print(f"  Saved: 3d_scale_b_top8var.html")
+        print("  Saved: 3d_scale_b_top8var.html")
         return coords
 
     # --- Scale B PCA-5 ---
     def exp_scale_b_pca5():
         projected, explained = reduce_pca(matrix_b, k=5)
-        print(f"\n=== Scale B PCA-5: 19-dim → 5 PCs → 3D UMAP ===")
+        print("\n=== Scale B PCA-5: 19-dim → 5 PCs → 3D UMAP ===")
         print(f"  Variance explained: {explained*100:.1f}%")
         coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
@@ -302,13 +306,13 @@ def main():
             f"5 principal components explaining {explained*100:.1f}% of variance",
         )
         fig.write_html(OUTPUT_DIR / "3d_scale_b_pca5.html")
-        print(f"  Saved: 3d_scale_b_pca5.html")
+        print("  Saved: 3d_scale_b_pca5.html")
         return coords
 
     # --- Scale B PCA-8 ---
     def exp_scale_b_pca8():
         projected, explained = reduce_pca(matrix_b, k=8)
-        print(f"\n=== Scale B PCA-8: 19-dim → 8 PCs → 3D UMAP ===")
+        print("\n=== Scale B PCA-8: 19-dim → 8 PCs → 3D UMAP ===")
         print(f"  Variance explained: {explained*100:.1f}%")
         coords = run_umap_3d(projected, args.n_neighbors, args.min_dist, DistanceMetric.EUCLIDEAN)
         fig = make_3d_figure(
@@ -317,7 +321,7 @@ def main():
             f"8 principal components explaining {explained*100:.1f}% of variance",
         )
         fig.write_html(OUTPUT_DIR / "3d_scale_b_pca8.html")
-        print(f"  Saved: 3d_scale_b_pca8.html")
+        print("  Saved: 3d_scale_b_pca8.html")
         return coords
 
     # --- Scale B de-correlated ---
@@ -334,7 +338,7 @@ def main():
             f"Removed redundant dims (|r| > 0.70) · Kept {len(sel_dims)}/20",
         )
         fig.write_html(OUTPUT_DIR / "3d_scale_b_decorr.html")
-        print(f"  Saved: 3d_scale_b_decorr.html")
+        print("  Saved: 3d_scale_b_decorr.html")
         return coords
 
     experiments = {
@@ -350,7 +354,7 @@ def main():
         experiments[args.only]()
     else:
         print("Running all 3D experiments...")
-        for name, fn in experiments.items():
+        for _name, fn in experiments.items():
             fn()
 
     print("\nDone! Open the 3d_*.html files for interactive 3D exploration.")

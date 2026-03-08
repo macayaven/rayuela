@@ -25,14 +25,21 @@ Usage (inside Docker container):
 """
 
 import json
+
 import numpy as np
-from pathlib import Path
 
 from project_config import (
-    PROJECT_ROOT, EMB_A_PATH as EMB_PATH, DATA_PATH,
-    RNG_SEED, N_PERMS, DistanceMetric,
+    DATA_PATH,
+    N_PERMS,
+    RNG_SEED,
+    DistanceMetric,
+    get_all_chapters,
+)
+from project_config import (
+    EMB_A_PATH as EMB_PATH,
+)
+from project_config import (
     z_score as compute_z_score,
-    continuity_corrected_percentile, get_all_chapters,
 )
 
 N_PERMUTATIONS = N_PERMS
@@ -88,7 +95,7 @@ def percentile_rank(observed: float, distribution: np.ndarray) -> float:
 
 def main():
     embeddings = np.load(EMB_PATH)
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
+    with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
     linear_path = data["reading_paths"]["linear"]
@@ -131,10 +138,10 @@ def main():
     elif linear_pct > 50:
         print(f"  ~ The linear ordering is smoother than {linear_pct:.1f}% of "
               f"random orderings.")
-        print(f"    → Some signal, but not statistically remarkable.")
+        print("    → Some signal, but not statistically remarkable.")
     else:
-        print(f"  ✗ The linear ordering is NOT smoother than random.")
-        print(f"    → The 1→56 sequence has no special textural continuity.")
+        print("  ✗ The linear ordering is NOT smoother than random.")
+        print("    → The 1→56 sequence has no special textural continuity.")
 
     print()
 
@@ -164,14 +171,14 @@ def main():
     if hopscotch_pct > 95:
         print(f"  ✓ The Tablero is smoother than {hopscotch_pct:.1f}% of "
               f"random permutations.")
-        print(f"    → Cortázar's hopscotch order has intentional textural continuity.")
+        print("    → Cortázar's hopscotch order has intentional textural continuity.")
     elif hopscotch_pct > 50:
         print(f"  ~ The Tablero is smoother than {hopscotch_pct:.1f}% of "
               f"random permutations.")
-        print(f"    → Some signal, but not statistically remarkable.")
+        print("    → Some signal, but not statistically remarkable.")
     else:
-        print(f"  ✗ The Tablero is NOT smoother than random permutations.")
-        print(f"    → The hopscotch order was not designed for textural flow.")
+        print("  ✗ The Tablero is NOT smoother than random permutations.")
+        print("    → The hopscotch order was not designed for textural flow.")
 
     print()
 
@@ -199,12 +206,12 @@ def main():
     linear_z = compute_z_score(linear_observed, linear_distribution, DistanceMetric.COSINE)
     hopscotch_z = compute_z_score(hopscotch_observed, hopscotch_distribution, DistanceMetric.COSINE)
 
-    print(f"  Z-scores (positive = smoother than random):")
+    print("  Z-scores (positive = smoother than random):")
     print(f"    Linear:    {linear_z:+.2f}σ")
     print(f"    Hopscotch: {hopscotch_z:+.2f}σ")
     print()
-    print(f"  The path with higher z-score shows more intentional textural")
-    print(f"  ordering relative to its random baseline.")
+    print("  The path with higher z-score shows more intentional textural")
+    print("  ordering relative to its random baseline.")
 
 
 if __name__ == "__main__":

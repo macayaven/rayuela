@@ -26,18 +26,22 @@ Output: outputs/figures/umap_*.html (interactive Plotly)
 
 import argparse
 import json
-import numpy as np
-from pathlib import Path
 
+import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.express as px
 import umap
+from plotly.subplots import make_subplots
 
 from project_config import (
-    PROJECT_ROOT, OUTPUT_FIGURES_DIR,
-    TABLERO, LINEAR_ORDER, SECTION_COLORS, SECTION_SHORT,
-    UMAP_N_NEIGHBORS, UMAP_MIN_DIST, DistanceMetric,
+    LINEAR_ORDER,
+    OUTPUT_FIGURES_DIR,
+    PROJECT_ROOT,
+    SECTION_COLORS,
+    SECTION_SHORT,
+    TABLERO,
+    UMAP_MIN_DIST,
+    UMAP_N_NEIGHBORS,
+    DistanceMetric,
 )
 
 # ---------------------------------------------------------------------------
@@ -256,7 +260,7 @@ def make_comparison_figure(
     ch_to_idx_a = chapter_to_index(all_meta)
     ch_to_idx_b = {ch["chapter"]: i for i, ch in enumerate(meta_b_chapters)}
 
-    for col, (coords, ch_idx, title_suffix) in enumerate([
+    for col, (coords, ch_idx, _title_suffix) in enumerate([
         (coords_a, ch_to_idx_a, "A"),
         (coords_b, ch_to_idx_b, "B"),
     ], start=1):

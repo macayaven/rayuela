@@ -23,9 +23,9 @@ import json
 import os
 import sys
 import time
-import numpy as np
 from pathlib import Path
 
+import numpy as np
 from openai import OpenAI
 
 # ---------------------------------------------------------------------------
@@ -62,13 +62,13 @@ DIMENSIONS = [
 # ---------------------------------------------------------------------------
 
 def load_chapters(data_path: Path) -> list[dict]:
-    with open(data_path, "r", encoding="utf-8") as f:
+    with open(data_path, encoding="utf-8") as f:
         data = json.load(f)
     return data["chapters"]
 
 
 def load_system_prompt(prompt_path: Path) -> str:
-    with open(prompt_path, "r", encoding="utf-8") as f:
+    with open(prompt_path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -296,7 +296,7 @@ def main():
 
     print()
     print("=" * 60)
-    print(f"Extraction complete!")
+    print("Extraction complete!")
     print(f"  Succeeded: {len(results)}/{len(results) + len(failures)}")
     if failures:
         print(f"  Failed: {failures}")

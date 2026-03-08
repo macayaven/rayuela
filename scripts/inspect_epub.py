@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+import glob
 import os
 import zipfile
-import glob
 
 data_dir = "/home/carlos/education/rayuela/data"
 os.chdir(data_dir)

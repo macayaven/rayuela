@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+import glob
 import os
 import zipfile
-import glob
+
 from bs4 import BeautifulSoup
 
 data_dir = "/home/carlos/education/rayuela/data"

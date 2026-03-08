@@ -25,9 +25,9 @@ import json
 import os
 import sys
 import time
-import numpy as np
 from pathlib import Path
 
+import numpy as np
 from openai import OpenAI
 
 # ---------------------------------------------------------------------------
@@ -72,15 +72,27 @@ DIMENSIONS = [
 # ---------------------------------------------------------------------------
 
 def load_chapters(data_path: Path) -> list[dict]:
-    """Load chapter data from rayuela_raw.json."""
-    with open(data_path, "r", encoding="utf-8") as f:
+    """Load chapter data from a JSON file with a 'chapters' array.
+
+    Handles both Rayuela schema (token_count, is_expendable) and corpus schema
+    (word_count, no is_expendable) by normalizing fields.
+    """
+    with open(data_path, encoding="utf-8") as f:
         data = json.load(f)
-    return data["chapters"]
+    chapters = data["chapters"]
+    for ch in chapters:
+        if "token_count" not in ch and "word_count" in ch:
+            ch["token_count"] = ch["word_count"]
+        if "is_expendable" not in ch:
+            ch["is_expendable"] = False
+        if "section" not in ch or ch["section"] is None:
+            ch["section"] = "N/A"
+    return chapters
 
 
 def load_system_prompt(prompt_path: Path) -> str:
     """Load the system prompt template."""
-    with open(prompt_path, "r", encoding="utf-8") as f:
+    with open(prompt_path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -303,12 +315,17 @@ def main():
         help="Extract evidence strings alongside scores (v2 format)"
     )
     parser.add_argument(
+        "--input", default=str(DATA_PATH),
+        help=f"Input JSON path (default: {DATA_PATH.name})"
+    )
+    parser.add_argument(
         "--resume", action="store_true",
         help="Resume from existing narrative_dna.json (skip already-extracted chapters)"
     )
     args = parser.parse_args()
 
     # Resolve paths
+    data_path = Path(args.input)
     PROMPT_PATH = Path(args.prompt)
     OUTPUT_DIR = Path(args.output_dir)
 
@@ -321,13 +338,13 @@ def main():
     print()
 
     # Load data
-    chapters = load_chapters(DATA_PATH)
+    chapters = load_chapters(data_path)
     system_prompt = load_system_prompt(PROMPT_PATH)
 
     if args.with_evidence:
-        print(f"Mode: scores + evidence (v2)")
+        print("Mode: scores + evidence (v2)")
     else:
-        print(f"Mode: scores only (v1)")
+        print("Mode: scores only (v1)")
     print(f"Loaded {len(chapters)} chapters")
     print(f"System prompt: {len(system_prompt)} chars")
 
@@ -366,7 +383,7 @@ def main():
         if args.model not in available:
             print(f"ERROR: {args.model} not found on vLLM server.")
             print(f"  Available models: {available}")
-            print(f"  Refusing to fall back — model identity is critical for replication.")
+            print("  Refusing to fall back — model identity is critical for replication.")
             sys.exit(1)
     except Exception as e:
         print(f"ERROR connecting to vLLM at {args.api_base}: {e}")
@@ -415,7 +432,7 @@ def main():
     # Summary
     print()
     print("=" * 60)
-    print(f"Extraction complete!")
+    print("Extraction complete!")
     print(f"  Succeeded: {len(results)}/{len(results) + len(failures)}")
     if failures:
         print(f"  Failed: {failures}")

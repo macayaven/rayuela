@@ -15,8 +15,9 @@ Usage (inside Docker container):
 
 import json
 import time
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -79,7 +80,7 @@ def main():
     # ------------------------------------------------------------------
     # Step 3: Load one chapter
     # ------------------------------------------------------------------
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
+    with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
     ch1 = data["chapters"][0]  # Chapter 1
@@ -130,7 +131,8 @@ def main():
 
         # Do both models agree on relative similarity?
         print("CONVERGENCE CHECK:")
-        print(f"  Both models see Ch.1 and Ch.68 as {'similar' if nemotron_sim > 0.5 else 'different'}?")
+        similarity_label = "similar" if nemotron_sim > 0.5 else "different"
+        print(f"  Both models see Ch.1 and Ch.68 as {similarity_label}?")
         print(f"  Nemotron: {nemotron_sim:.4f}")
         print(f"  E5:       {e5_sim_1_68:.4f}")
         agree = (nemotron_sim > 0.5) == (e5_sim_1_68 > 0.5)
@@ -146,11 +148,12 @@ def main():
     print("=" * 65)
     print("SMOKE TEST RESULTS")
     print("=" * 65)
-    print(f"  Model loads:      YES")
+    print("  Model loads:      YES")
     print(f"  GPU used:         {model.device}")
     print(f"  Embed dimension:  {dim}")
-    print(f"  Dimension match:  {'YES (1024)' if dim == TARGET_DIM else f'NO — got {dim}, expected {TARGET_DIM}'}")
-    print(f"  Embeddings valid: YES (normalized, finite)")
+    dim_match = "YES (1024)" if dim == TARGET_DIM else f"NO — got {dim}, expected {TARGET_DIM}"
+    print(f"  Dimension match:  {dim_match}")
+    print("  Embeddings valid: YES (normalized, finite)")
     print(f"  Load time:        {load_time:.1f}s")
     print(f"  Embed time (2ch): {embed_time:.2f}s")
     print()
@@ -158,9 +161,9 @@ def main():
     if dim != TARGET_DIM:
         print(f"  NOTE: Default dimension is {dim}, not {TARGET_DIM}.")
         print(f"  We may need to configure truncated_dim={TARGET_DIM}")
-        print(f"  or use the model's native dimension for the replication.")
-        print(f"  Using the native dimension is actually BETTER for independence —")
-        print(f"  it avoids any argument that we tuned to match E5.")
+        print("  or use the model's native dimension for the replication.")
+        print("  Using the native dimension is actually BETTER for independence —")
+        print("  it avoids any argument that we tuned to match E5.")
     print()
 
     print("VERDICT: Ready for full 155-chapter replication!")

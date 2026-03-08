@@ -10,10 +10,11 @@ All scripts should import from here rather than defining their own copies.
 """
 
 import json
-import numpy as np
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
+
+import numpy as np
 
 # ---------------------------------------------------------------------------
 # Project paths
@@ -33,10 +34,29 @@ NARRATIVE_DNA_PATH = PROJECT_ROOT / "outputs" / "semantic" / "narrative_dna.json
 
 OUTPUT_FIGURES_DIR = PROJECT_ROOT / "outputs" / "figures"
 
+# Corpus paths
+CORPUS_DIR = PROJECT_ROOT / "data" / "corpus"
+CORPUS_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "corpus"
+
+# Corpus work IDs → (author, short title) for display and grouping
+CORPUS_WORKS = {
+    "garciamarquez_cienanos": ("García Márquez", "Cien años de soledad"),
+    "sabato_eltunel": ("Sábato", "El túnel"),
+    "cortazar_unlucas": ("Cortázar", "Un tal Lucas"),
+    "borges_ficciones": ("Borges", "Ficciones"),
+    "borges_elaleph": ("Borges", "El Aleph"),
+    "cabrerainfante_trestistestigres": ("Cabrera Infante", "Tres tristes tigres"),
+    "cortazar_62modelo": ("Cortázar", "62: Modelo para armar"),
+    "rulfo_pedroparamo": ("Rulfo", "Pedro Páramo"),
+    "bolano_detectivessalvajes": ("Bolaño", "Los detectives salvajes"),
+    "quiroga_cuentosamor": ("Quiroga", "Cuentos de amor de locura y de muerte"),
+}
+
 
 # ---------------------------------------------------------------------------
 # Distance metrics (enum eliminates magic strings)
 # ---------------------------------------------------------------------------
+
 
 class DistanceMetric(Enum):
     """
@@ -50,6 +70,7 @@ class DistanceMetric(Enum):
     Cosine similarity: higher similarity = smoother → sign = +1
       z = +1 * (observed - null_mean) / null_std
     """
+
     EUCLIDEAN = "euclidean"
     COSINE = "cosine"
 
@@ -71,6 +92,7 @@ NUM_CHAPTERS = 155
 # ---------------------------------------------------------------------------
 # Shared statistical utilities
 # ---------------------------------------------------------------------------
+
 
 def z_score(observed: float, null_dist: np.ndarray, metric: DistanceMetric) -> float:
     """
@@ -140,8 +162,7 @@ def z_standardize_scores_dict(
     mu = matrix.mean(axis=0)
     sigma = matrix.std(axis=0)
     sigma[sigma == 0] = 1.0
-    return {ch: (np.array([scores[ch][d] for d in dims]) - mu) / sigma
-            for ch in sorted_chs}
+    return {ch: (np.array([scores[ch][d] for d in dims]) - mu) / sigma for ch in sorted_chs}
 
 
 def continuity_corrected_percentile(
@@ -178,6 +199,7 @@ def continuity_corrected_percentile(
 # Reading paths (loaded once from the canonical JSON)
 # ---------------------------------------------------------------------------
 
+
 @lru_cache(maxsize=1)
 def _load_raw_data() -> dict:
     """Load rayuela_raw.json once and cache it."""
@@ -212,9 +234,9 @@ TABLERO, LINEAR_ORDER = get_reading_paths()
 # ---------------------------------------------------------------------------
 
 SECTION_COLORS = {
-    "Del lado de allá": "#2196F3",                         # Blue — Paris
-    "Del lado de acá": "#FF9800",                          # Orange — Buenos Aires
-    "De otros lados (Capítulos prescindibles)": "#9C27B0", # Purple — Expendable
+    "Del lado de allá": "#2196F3",  # Blue — Paris
+    "Del lado de acá": "#FF9800",  # Orange — Buenos Aires
+    "De otros lados (Capítulos prescindibles)": "#9C27B0",  # Purple — Expendable
 }
 
 SECTION_SHORT = {
@@ -230,22 +252,34 @@ SECTION_SHORT = {
 
 DIM_GROUPS = {
     "Thematic": [
-        "existential_questioning", "art_and_aesthetics",
-        "everyday_mundanity", "death_and_mortality", "love_and_desire",
+        "existential_questioning",
+        "art_and_aesthetics",
+        "everyday_mundanity",
+        "death_and_mortality",
+        "love_and_desire",
     ],
     "Emotional": [
-        "emotional_intensity", "humor_and_irony",
-        "melancholy_and_nostalgia", "tension_and_anxiety",
+        "emotional_intensity",
+        "humor_and_irony",
+        "melancholy_and_nostalgia",
+        "tension_and_anxiety",
     ],
     "Character": [
-        "oliveira_centrality", "la_maga_presence",
-        "character_density", "interpersonal_conflict",
+        "oliveira_centrality",
+        "la_maga_presence",
+        "character_density",
+        "interpersonal_conflict",
     ],
     "Narrative": [
-        "interiority", "dialogue_density", "metafiction", "temporal_clarity",
+        "interiority",
+        "dialogue_density",
+        "metafiction",
+        "temporal_clarity",
     ],
     "Formal": [
-        "spatial_grounding", "language_experimentation", "intertextual_density",
+        "spatial_grounding",
+        "language_experimentation",
+        "intertextual_density",
     ],
 }
 
@@ -274,6 +308,7 @@ def filter_excluded_dims(matrix: np.ndarray) -> np.ndarray:
     dimensions) for downstream analysis that should only use validated dims.
     """
     return matrix[:, _VALIDATED_COLS]
+
 
 DIM_LABELS = {
     "existential_questioning": "Existential",

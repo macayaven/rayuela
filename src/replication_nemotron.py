@@ -19,15 +19,23 @@ Usage (inside Docker container):
 
 import json
 import time
+
 import numpy as np
-from pathlib import Path
 
 from project_config import (
-    PROJECT_ROOT, DATA_PATH, EMB_A_PATH,
-    RNG_SEED, N_PERMS, DistanceMetric,
-    z_score as compute_z_score,
+    DATA_PATH,
+    EMB_A_PATH,
+    LINEAR_ORDER,
+    N_PERMS,
+    PROJECT_ROOT,
+    RNG_SEED,
+    TABLERO,
+    DistanceMetric,
     continuity_corrected_percentile,
-    get_all_chapters, TABLERO, LINEAR_ORDER,
+    get_all_chapters,
+)
+from project_config import (
+    z_score as compute_z_score,
 )
 
 # ---------------------------------------------------------------------------
