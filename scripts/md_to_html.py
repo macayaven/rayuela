@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert the root article markdown files to self-contained HTML."""
+"""Convert the root article markdown files to Medium-friendly HTML."""
 
 import markdown
 import re
@@ -71,14 +71,16 @@ STYLE = """
 </style>
 """
 
+IMAGE_BASE_URL = "https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/"
+
 def convert(md_path: Path, html_path: Path):
     text = md_path.read_text(encoding="utf-8")
 
-    # Root article markdown uses bare PNG names; resolve them to the
-    # committed article_images/ directory so the generated HTML renders.
+    # Root article markdown uses bare PNG names; rewrite them to stable
+    # raw GitHub URLs so the exported HTML works outside the repo checkout.
     text = re.sub(
         r"\]\((p[12]_[^)]+\.(?:png|jpe?g|gif|webp))\)",
-        r"](article_images/\1)",
+        lambda match: f"]({IMAGE_BASE_URL}{match.group(1)})",
         text,
     )
 
