@@ -112,6 +112,7 @@ docker compose run --rm rayuela python scripts/prepare_ghpages.py
 
 - GitHub Actions enforces four checks on pull requests: pre-commit, type checking, tests with an 85% coverage threshold, and docstring coverage with an 85% threshold.
 - The CI-safe quality scope currently covers [`src/parsing.py`](src/parsing.py), [`src/project_config.py`](src/project_config.py), [`src/reconstruction_contract.py`](src/reconstruction_contract.py), [`scripts/md_to_html.py`](scripts/md_to_html.py), and [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py).
+- Part 3 reconstruction coverage now also includes [`src/reconstruction_audit.py`](src/reconstruction_audit.py).
 - Local setup:
 
 ```bash
@@ -157,3 +158,27 @@ Phase 0 dry run:
 ```bash
 python3 src/reconstruction_contract.py --run-id phase0-dry-run --phase phase-0-quality-envelope
 ```
+
+## Reconstruction Audit
+
+Phase 1 adds [`src/reconstruction_audit.py`](src/reconstruction_audit.py) to verify that the cleaned comparison corpus and its derived outputs remain operationally decoupled from stale or orphaned artifacts.
+
+Targeted Phase 1 verification:
+
+```bash
+python3 -m pytest tests/test_reconstruction_audit.py -q
+python3 src/reconstruction_audit.py
+```
+
+Primary outputs:
+
+- `outputs/corpus/corpus_metadata.json`: work- and author-level segment counts from the cleaned corpus
+- `outputs/reconstruction/analysis/corpus_sync_audit.json`: machine-readable synchronization report
+
+## Corpus Extension
+
+The repo is no longer only about `Rayuela`. [`src/corpus_cleanup.py`](src/corpus_cleanup.py), [`src/corpus_stylometrics.py`](src/corpus_stylometrics.py), and [`src/corpus_semantic.py`](src/corpus_semantic.py) extend the same methods to a broader Latin American corpus stored in [`data/corpus/`](data/corpus/).
+
+## Data Note
+
+This repository includes raw and derived literary texts inside [`data/`](data/). Before redistributing the project or reusing the source texts elsewhere, verify that you have the rights to do so.

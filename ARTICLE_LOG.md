@@ -243,3 +243,25 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 - dry-run manifest write passed without generation
 
 **For Part 3**: The experiment now has a concrete run contract before any generation begins. Every later phase can inherit the same metadata envelope: git SHA, seed bundle, config hash, corpus manifest, split manifest, and run-local artifact paths.
+
+### 2026-03-08 — Part 3 Phase 1: Corpus Synchronization Audit Baseline
+
+**Phase**: Part 3 — Phase 1 (Corpus Synchronization and Audit)
+
+**What happened**: Added `src/reconstruction_audit.py` and `tests/test_reconstruction_audit.py` test-first to compare the cleaned comparison corpus against the committed stylometric and semantic outputs. The audit generates a machine-readable corpus manifest and flags stale coverage, missing aggregates, orphan outputs, and profile drift without collapsing the result into a single pass/fail sentence. The implementation keeps the claim narrow: this is an operational decoupling audit of the measurement stack, not a claim that the corpus is now permanently synchronized.
+
+**Current audit baseline**:
+- cleaned corpus total: 10 works / 495 segments
+- stale stylometric outputs: `bolano_detectivessalvajes` (3 vs 194), `cabrerainfante_trestistestigres` (1 vs 40), `cortazar_62modelo` (1 vs 44), `rulfo_pedroparamo` (1 vs 71)
+- missing aggregate: `outputs/corpus/author_profiles_semantic.json`
+- stale aggregate drift in `author_profiles_stylo.json`, including a Cortázar profile that still mixes `Rayuela` into the corpus-only aggregate
+
+**Key decision**: Corpus author profiles should be corpus-only by default. `src/corpus_stylometrics.py` and `src/corpus_semantic.py` now reserve `Rayuela` inclusion for an explicit `--include-rayuela` path instead of silently folding it into the comparison corpus aggregates.
+
+**Constraint encountered**: The canonical `outputs/corpus/` tree is owned by `nobody:nogroup` in this sandbox, so the Phase 1 audit could only write its generated artifacts under `outputs/reconstruction/analysis/` during this session. The code paths for `outputs/corpus/corpus_metadata.json` remain implemented, but in-place regeneration of the stale corpus outputs is blocked here by filesystem permissions, not by missing audit coverage.
+
+**Verification**:
+- `pytest tests/test_reconstruction_audit.py -q` passed
+- repo-wide `ruff check src tests scripts` passed after baseline cleanup
+- full `pytest -q` passed
+- full `mypy` passed
