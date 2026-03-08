@@ -3,23 +3,71 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ARTICLE PART2 MEDIUM</title>
-  <style>
-  body { font-family: Georgia, 'Times New Roman', serif; max-width: 740px; margin: 2rem auto; padding: 0 1rem; line-height: 1.8; color: #292929; font-size: 18px; }
+  <title>ARTICLE_PART2_MEDIUM</title>
+  
+<style>
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    max-width: 740px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    line-height: 1.8;
+    color: #292929;
+    font-size: 18px;
+  }
   h1 { font-size: 2.2rem; margin-bottom: 0.3rem; line-height: 1.2; }
   h2 { font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; }
-  p { margin-bottom: 1.2rem; } em { font-style: italic; } strong { font-weight: 700; }
-  blockquote { border-left: 3px solid #ccc; padding-left: 1rem; color: #555; margin: 1.5rem 0; }
-  table { border-collapse: collapse; margin: 1.5rem 0; width: 100%; font-size: 0.95rem; }
-  th, td { border: 1px solid #ddd; padding: 0.5rem 0.75rem; text-align: left; }
+  p { margin-bottom: 1.2rem; }
+  em { font-style: italic; }
+  strong { font-weight: 700; }
+  blockquote {
+    border-left: 3px solid #ccc;
+    padding-left: 1rem;
+    color: #555;
+    margin: 1.5rem 0;
+  }
+  table {
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    width: 100%;
+    font-size: 0.95rem;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+  }
   th { background: #f5f5f5; font-weight: 600; }
   hr { border: none; border-top: 1px solid #ddd; margin: 2rem 0; }
-  img { max-width: 100%; height: auto; display: block; margin: 1.5rem auto; border-radius: 4px; }
-  .figure-caption { font-size: 0.9rem; color: #666; font-style: italic; margin-top: -1rem; margin-bottom: 2rem; text-align: center; }
-  ul, ol { margin-bottom: 1.2rem; padding-left: 1.5rem; } li { margin-bottom: 0.4rem; }
-  a { color: #1a8917; text-decoration: none; } a:hover { text-decoration: underline; }
-  .methodology-note { background: #f9f9f9; border: 1px solid #eee; padding: 1rem 1.2rem; border-radius: 4px; font-size: 0.85rem; color: #555; margin-top: 2rem; line-height: 1.6; }
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5rem 0;
+  }
+  .figure-caption {
+    font-size: 0.9rem;
+    color: #666;
+    font-style: italic;
+    margin-top: -1rem;
+    margin-bottom: 2rem;
+  }
+  ul, ol { margin-bottom: 1.2rem; padding-left: 1.5rem; }
+  li { margin-bottom: 0.4rem; }
+  a { color: #1a8917; }
+  code { background: #f5f5f5; padding: 0.15rem 0.3rem; border-radius: 3px; font-size: 0.9em; }
+  .byline { color: #757575; font-size: 1rem; margin-bottom: 2rem; }
+  .attribution {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    padding: 1rem 1.2rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: #555;
+    margin-top: 2rem;
+  }
 </style>
+
 </head>
 <body>
 <h1>How Do You Teach a Machine to Read Like a Critic?</h1>
@@ -40,7 +88,7 @@
 <p>(An original 20th dimension — temporal clarity — was excluded after inter-rater reliability testing revealed a rubric polarity problem: one model read &ldquo;high&rdquo; as &ldquo;timeline is clear&rdquo; while the other read it as &ldquo;time is fragmented.&rdquo; These are nearly opposite interpretations. Rather than keep an ambiguous dimension, we dropped it.)</p>
 <p>Each dimension is scored 1-10 with an explicit rubric. For example, <em>humor and irony</em> = 1 means &ldquo;completely serious&rdquo;; = 10 means &ldquo;pervasive humor, satire, or ironic play.&rdquo; The rubric was designed before any model ran — we didn&rsquo;t tune it to produce interesting results.</p>
 <p>We call the resulting 19-number profile of each chapter its <strong>narrative DNA</strong>.</p>
-<p><img alt="The full 155-chapter x 19-dimension heatmap: every chapter scored on every dimension." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p2_figure1_heatmap.png"></p>
+<p><img alt="The full 155-chapter x 19-dimension heatmap: every chapter scored on every dimension." src="article_images/p2_figure1_heatmap.png"></p>
 <p class="figure-caption">Figure 1 — Narrative DNA. Each row is a chapter; each column is a dimension. Red means high, blue means low. The expendable chapters (57-155) diversify dramatically — they are the laboratory of the novel. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_heatmap.html))</p>
 
 <h2>The Gliglico Test</h2>
@@ -61,16 +109,16 @@
 <li><strong>Buenos Aires</strong>: similar emotional register but lower La Maga presence (she&rsquo;s absent), more spatial grounding, more dialogue. The real world pressing in.</li>
 <li><strong>Expendable chapters</strong>: break free of Oliveira&rsquo;s dominance. Intertextual density rises; metafiction spikes; humor becomes more prevalent. This is where Cortázar experiments most freely.</li>
 </ul>
-<p><img alt="Box plots showing how each dimension distributes across the three sections." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p2_figure2_sections.png"></p>
+<p><img alt="Box plots showing how each dimension distributes across the three sections." src="article_images/p2_figure2_sections.png"></p>
 <p class="figure-caption">Figure 2 — Section Profiles. The dimensions that most differentiate the three sections are La Maga presence, character density, and dialogue density. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_sections.html))</p>
 
 <p>The dimensions also reveal a hidden grammar — which traits co-occur in Cortázar&rsquo;s writing. Oliveira&rsquo;s centrality and interiority are tightly linked (r ~ 0.7): when Oliveira dominates, the prose turns inward. Humor and existential questioning are surprisingly independent: Cortázar can be deeply philosophical and deeply funny at the same time.</p>
-<p><img alt="Dimension correlation matrix." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p2_figure3_correlation.png"></p>
+<p><img alt="Dimension correlation matrix." src="article_images/p2_figure3_correlation.png"></p>
 <p class="figure-caption">Figure 3 — Dimension Correlation Matrix. The "grammar" of Cortázar's writing modes. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_correlation.html))</p>
 
 <h2>Chapter Fingerprints</h2>
 <p>Each chapter&rsquo;s 19-dimensional profile is a unique fingerprint. Compare a few:</p>
-<p><img alt="Radar charts showing the narrative fingerprints of notable chapters." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p2_figure4_radar.png"></p>
+<p><img alt="Radar charts showing the narrative fingerprints of notable chapters." src="article_images/p2_figure4_radar.png"></p>
 <p class="figure-caption">Figure 4 — Narrative Fingerprints. Each spoke is one of the 19 dimensions. Chapter 68 (Gliglico) concentrates all its energy in two dimensions. Chapter 1 is expansive. Chapter 93 (Morelli's literary theory) lights up metafiction and intertextuality. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_radar.html))</p>
 
 <p>The visual difference between chapters is the difference the hopscotch path exploits. When Cortázar places Chapter 1 (Oliveira searching for La Maga) next to Chapter 93 (a philosophical meditation on love and language), the jump between those two fingerprints is what creates the collision. The reader&rsquo;s mind has to bridge the gap. That bridging — that work — may be the hopscotch experience.</p>
@@ -160,7 +208,7 @@
 <p>They also open a curious possibility: if you know <em>which</em> textual elements drive each score, you could surgically replace them — swapping the cultural furniture of 1960s Paris with another time and place while preserving the narrative DNA.</p>
 <h2>The Same Novel, Two Heatmaps</h2>
 <p>The most direct way to see the collision principle is to lay the entire novel out twice — once in linear order, once in hopscotch order — and look at the patterns.</p>
-<p><img alt="Side-by-side heatmaps: linear order (smooth gradients) vs hopscotch order (rapid alternation)." src="https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/p2_figure5_dual_heatmap.png"></p>
+<p><img alt="Side-by-side heatmaps: linear order (smooth gradients) vs hopscotch order (rapid alternation)." src="article_images/p2_figure5_dual_heatmap.png"></p>
 <p class="figure-caption">Figure 5 — Two Reading Orders, Same Data. Left: linear order shows smooth gradients — similar chapters adjacent. Right: hopscotch order shows rapid color alternation — markedly different chapters placed side by side. ([Interactive version](https://carloscrespomacaya.com/rayuela/article_dual_heatmap.html))</p>
 
 <p>The linear heatmap looks like a landscape: rolling hills, gradual transitions, coherent regions. The hopscotch heatmap alternates much more abruptly — starkly different profiles juxtaposed step after step. The data makes visible what readers have always felt.</p>
@@ -234,6 +282,6 @@
 <p class="figure-caption">All interactive visualizations: [carloscrespomacaya.com/rayuela](https://carloscrespomacaya.com/rayuela). Code: [github.com/macayaven/rayuela](https://github.com/macayaven/rayuela).</p>
 
 <hr>
-<p></p><div class="methodology-note"><strong>Methodology note</strong>: Four scales — A: 1024-dim embeddings (multilingual-e5-large-instruct); A&rsquo;: 26 content-free stylometric features (via spaCy es_core_news_lg + regex); B&rsquo;: 12 LLM-perceived style dimensions (Qwen 3.5 27B, zero-shot); B: 19 narrative-semantic dimensions (Qwen 3.5 27B, v1 zero-shot + v2 few-shot with evidence; temporal clarity excluded after inter-rater failure). Inter-rater reliability: Llama-Nemotron 70B vs Qwen 3.5 27B — overall ρ = 0.844, mean κw = 0.753, 18/19 dims ρ ≥ 0.70. Scale B v1-v2 agreement: 83.6% within ±1, 95.6% within ±2, 19/20 dims r &gt; 0.85. Smoothness z-scores: Linear +3.2σ to +6.4σ (all survive Bonferroni at α = 0.05, threshold ≈ 2.50σ); Hopscotch +2.8σ (A), +1.3σ (B&rsquo;), +1.1σ (A&rsquo;), −0.3σ (B). Curvature z-scores (positive = gentler): Linear +1.3σ to +1.7σ; Hopscotch −1.9σ (A&rsquo;), −4.1σ (A, d=1024 caveat), −4.7σ (B). Cross-scale Mantel correlations: A↔B 0.53, A&rsquo;↔B&rsquo; 0.61, B↔B&rsquo; 0.61, A&rsquo;↔B 0.42, A↔B&rsquo; 0.44, A↔A&rsquo; 0.38. Permutation tests use separate null distributions per path; z-score magnitudes not directly comparable across paths (different lengths, different chapter pools). Evidence strings: ~54% span-level fidelity (LLM paraphrases, not citations). 153/155 chapters scored in v2 (2 exceeded 24,576-token context window). Analysis on NVIDIA DGX Spark (ARM64, GB10 GPU, 128 GB unified memory).</p></div>
+<p><strong>Methodology note</strong>: Four scales — A: 1024-dim embeddings (multilingual-e5-large-instruct); A&rsquo;: 26 content-free stylometric features (via spaCy es_core_news_lg + regex); B&rsquo;: 12 LLM-perceived style dimensions (Qwen 3.5 27B, zero-shot); B: 19 narrative-semantic dimensions (Qwen 3.5 27B, v1 zero-shot + v2 few-shot with evidence; temporal clarity excluded after inter-rater failure). Inter-rater reliability: Llama-Nemotron 70B vs Qwen 3.5 27B — overall ρ = 0.844, mean κw = 0.753, 18/19 dims ρ ≥ 0.70. Scale B v1-v2 agreement: 83.6% within ±1, 95.6% within ±2, 19/20 dims r &gt; 0.85. Smoothness z-scores: Linear +3.2σ to +6.4σ (all survive Bonferroni at α = 0.05, threshold ≈ 2.50σ); Hopscotch +2.8σ (A), +1.3σ (B&rsquo;), +1.1σ (A&rsquo;), −0.3σ (B). Curvature z-scores (positive = gentler): Linear +1.3σ to +1.7σ; Hopscotch −1.9σ (A&rsquo;), −4.1σ (A, d=1024 caveat), −4.7σ (B). Cross-scale Mantel correlations: A↔B 0.53, A&rsquo;↔B&rsquo; 0.61, B↔B&rsquo; 0.61, A&rsquo;↔B 0.42, A↔B&rsquo; 0.44, A↔A&rsquo; 0.38. Permutation tests use separate null distributions per path; z-score magnitudes not directly comparable across paths (different lengths, different chapter pools). Evidence strings: ~54% span-level fidelity (LLM paraphrases, not citations). 153/155 chapters scored in v2 (2 exceeded 24,576-token context window). Analysis on NVIDIA DGX Spark (ARM64, GB10 GPU, 128 GB unified memory).</p>
 </body>
 </html>
