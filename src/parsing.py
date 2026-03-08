@@ -18,6 +18,7 @@ import json
 import re
 import zipfile
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -47,6 +48,7 @@ def get_section(chapter_number: int) -> str:
 # ---------------------------------------------------------------------------
 # XHTML → plain text
 # ---------------------------------------------------------------------------
+
 
 def strip_chapter_xhtml(xhtml: str) -> str:
     """
@@ -126,6 +128,7 @@ def strip_chapter_xhtml(xhtml: str) -> str:
 # Tablero de Dirección (hopscotch reading sequence)
 # ---------------------------------------------------------------------------
 
+
 def parse_tablero(xhtml: str) -> list[int]:
     """
     Extract the hopscotch reading sequence from the Tablero XHTML.
@@ -143,7 +146,7 @@ def parse_tablero(xhtml: str) -> list[int]:
 
     # Find the sequence lines: they contain numbers separated by dashes
     # Skip the prose paragraphs (Tablero explanation text)
-    numbers = []
+    numbers: list[int] = []
     for line in text.split("\n"):
         # A sequence line has mostly numbers and dashes
         cleaned = line.strip()
@@ -160,6 +163,7 @@ def parse_tablero(xhtml: str) -> list[int]:
 # ---------------------------------------------------------------------------
 # Epigraph extraction
 # ---------------------------------------------------------------------------
+
 
 def extract_epigraph(xhtml: str) -> str:
     """Extract text from a section epigraph/header XHTML file."""
@@ -183,6 +187,7 @@ def extract_epigraph(xhtml: str) -> str:
 # Main parser
 # ---------------------------------------------------------------------------
 
+
 def parse_epub(epub_path: Path) -> dict:
     """
     Parse the Rayuela ePub into a structured dictionary.
@@ -191,13 +196,12 @@ def parse_epub(epub_path: Path) -> dict:
       metadata, reading_paths, sections, chapters
     """
     with zipfile.ZipFile(epub_path, "r") as z:
-
         # --- Tablero de Dirección ---
         tablero_xhtml = z.read("OEBPS/Text/TableroDeDireccion.xhtml").decode("utf-8")
         hopscotch_sequence = parse_tablero(tablero_xhtml)
 
         # --- Section epigraphs ---
-        epigraphs = {}
+        epigraphs: dict[str, Any] = {}
 
         # "Del lado de allá" — Vaché quote (0.xhtml)
         ep_alla = z.read("OEBPS/Text/0.xhtml").decode("utf-8")
@@ -272,13 +276,14 @@ def parse_epub(epub_path: Path) -> dict:
     return result
 
 
-def main():
-    if not EPUB_PATH.exists():
-        print(f"Error: ePub not found at {EPUB_PATH}")
-        return
+def main(epub_path: Path = EPUB_PATH, output_path: Path = OUTPUT_PATH) -> int:
+    """Parse the canonical Rayuela ePub and write the normalized JSON output."""
+    if not epub_path.exists():
+        print(f"Error: ePub not found at {epub_path}")
+        return 1
 
-    print(f"Parsing ePub: {EPUB_PATH.name}")
-    data = parse_epub(EPUB_PATH)
+    print(f"Parsing ePub: {epub_path.name}")
+    data = parse_epub(epub_path)
 
     # Summary stats
     total_words = sum(ch["token_count"] for ch in data["chapters"])
@@ -289,11 +294,7 @@ def main():
     # Section breakdown
     for section_name, section_info in data["sections"].items():
         ch_nums = section_info["chapters"]
-        section_words = sum(
-            ch["token_count"]
-            for ch in data["chapters"]
-            if ch["number"] in ch_nums
-        )
+        section_words = sum(ch["token_count"] for ch in data["chapters"] if ch["number"] in ch_nums)
         print(f"  {section_name}: {len(ch_nums)} chapters, ~{section_words:,} words")
 
     # Shortest and longest chapters
@@ -302,12 +303,13 @@ def main():
     print(f"  Longest chapter:  {by_length[-1]['number']} ({by_length[-1]['token_count']} words)")
 
     # Write output
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-    print(f"\nOutput written to: {OUTPUT_PATH}")
+    print(f"\nOutput written to: {output_path}")
+    return 0
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

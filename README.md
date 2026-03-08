@@ -1,5 +1,12 @@
 # Project Rayuela
 
+[![Pre-commit](https://github.com/macayaven/rayuela/actions/workflows/pre-commit.yml/badge.svg?branch=main)](https://github.com/macayaven/rayuela/actions/workflows/pre-commit.yml)
+[![Type Check](https://github.com/macayaven/rayuela/actions/workflows/type-check.yml/badge.svg?branch=main)](https://github.com/macayaven/rayuela/actions/workflows/type-check.yml)
+[![Tests](https://github.com/macayaven/rayuela/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/macayaven/rayuela/actions/workflows/tests.yml)
+[![Documentation Coverage](https://github.com/macayaven/rayuela/actions/workflows/documentation-coverage.yml/badge.svg?branch=main)](https://github.com/macayaven/rayuela/actions/workflows/documentation-coverage.yml)
+[![Coverage Threshold](https://img.shields.io/badge/coverage%20threshold-85%25-brightgreen)](./pyproject.toml)
+[![Docstring Threshold](https://img.shields.io/badge/docstrings-85%25%2B-blue)](./pyproject.toml)
+
 Project Rayuela is a computational literary analysis of Julio Cortazar's *Rayuela*. The repository contains the full workflow behind the project: text cleanup, embeddings, classical stylometrics, LLM-based style and semantic scoring, permutation tests, interactive visualizations, and article assets for a two-part series.
 
 This workspace is already well past the planning stage. The analysis code, derived datasets, generated figures, article drafts, and GitHub Pages assets are all committed here.
@@ -100,6 +107,23 @@ docker compose run --rm rayuela python scripts/prepare_ghpages.py
 - [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py): copies selected figure HTML from `outputs/figures/` into `docs/` and swaps inline Plotly bundles for the CDN version.
 - [`scripts/md_to_html.py`](scripts/md_to_html.py): converts the root Medium article markdown files into self-contained HTML. This script uses the Python `markdown` package.
 - [`scripts/export_article_pngs.py`](scripts/export_article_pngs.py): exports static PNGs from Plotly figures for article use. It requires `kaleido`.
+
+## Quality Gates
+
+- GitHub Actions enforces four checks on pull requests: pre-commit, type checking, tests with an 85% coverage threshold, and docstring coverage with an 85% threshold.
+- The CI-safe quality scope currently covers [`src/parsing.py`](src/parsing.py), [`src/project_config.py`](src/project_config.py), [`scripts/md_to_html.py`](scripts/md_to_html.py), and [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py).
+- Local setup:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pre_commit install
+python3 -m pre_commit run --all-files
+python3 -m mypy
+python3 -m pytest
+python3 -m interrogate src/parsing.py src/project_config.py scripts/md_to_html.py scripts/prepare_ghpages.py
+```
+
+- The source-controlled GitHub ruleset definition lives at [`.github/rulesets/main-quality-gate.json`](.github/rulesets/main-quality-gate.json).
 
 ## Corpus Extension
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Convert the root article markdown files to Medium-friendly HTML."""
 
-import markdown
 import re
-import sys
 from pathlib import Path
+
+import markdown
 
 STYLE = """
 <style>
@@ -73,7 +73,9 @@ STYLE = """
 
 IMAGE_BASE_URL = "https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/"
 
-def convert(md_path: Path, html_path: Path):
+
+def convert(md_path: Path, html_path: Path) -> None:
+    """Render one article markdown file to standalone HTML."""
     text = md_path.read_text(encoding="utf-8")
 
     # Root article markdown uses bare PNG names; rewrite them to stable
@@ -87,8 +89,12 @@ def convert(md_path: Path, html_path: Path):
     # Convert image captions (lines starting with * after images) to styled divs
     lines = text.split("\n")
     processed = []
-    for i, line in enumerate(lines):
-        if line.startswith("*Figure") or line.startswith("*This is Part") or line.startswith("*All interactive"):
+    for line in lines:
+        if (
+            line.startswith("*Figure")
+            or line.startswith("*This is Part")
+            or line.startswith("*All interactive")
+        ):
             processed.append(f'<p class="figure-caption">{line.strip("*")}</p>')
         elif line.startswith("*This article is the result"):
             processed.append(f'<div class="attribution">{line.strip("*")}</div>')
@@ -119,8 +125,11 @@ def convert(md_path: Path, html_path: Path):
     print(f"  {md_path.name} -> {html_path.name}")
 
 
-if __name__ == "__main__":
-    base = Path(__file__).resolve().parent.parent
+def main(base: Path | None = None) -> None:
+    """Regenerate the root HTML article exports from the current markdown sources."""
+    if base is None:
+        base = Path(__file__).resolve().parent.parent
+
     article_pairs = [
         ("ARTICLE_PART1_MEDIUM.md", "ARTICLE_PART1_MEDIUM.html"),
         ("ARTICLE_PART2_MEDIUM.md", "ARTICLE_PART2_MEDIUM.html"),
@@ -132,3 +141,7 @@ if __name__ == "__main__":
         if md_file.exists():
             convert(md_file, html_file)
     print("Done.")
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()
