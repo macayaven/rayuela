@@ -105,8 +105,8 @@ docker compose run --rm rayuela python scripts/prepare_ghpages.py
 ## Publication Helpers
 
 - [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py): copies selected figure HTML from `outputs/figures/` into `docs/` and swaps inline Plotly bundles for the CDN version.
-- [`scripts/md_to_html.py`](scripts/md_to_html.py): converts the root Medium article markdown files into self-contained HTML. This script uses the Python `markdown` package.
-- [`scripts/export_article_pngs.py`](scripts/export_article_pngs.py): exports static PNGs from Plotly figures for article use. It requires `kaleido`.
+- [`scripts/md_to_html.py`](scripts/md_to_html.py): converts the root Medium article markdown files into self-contained HTML. The helper depends on the Python `markdown` package, which is included in [`requirements-dev.txt`](requirements-dev.txt) for local QA but is not preinstalled in the base analysis container. Install it before running the export helper inside Docker with `docker compose run --rm rayuela pip install markdown`, or locally with `python3 -m pip install markdown`.
+- [`scripts/export_article_pngs.py`](scripts/export_article_pngs.py): exports static PNGs from Plotly figures for article use. It depends on `kaleido`; install it the same way with `docker compose run --rm rayuela pip install kaleido` or `python3 -m pip install kaleido`.
 
 ## Quality Gates
 

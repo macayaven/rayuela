@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Convert the root article markdown files to Medium-friendly HTML."""
 
+import argparse
+import os
 import re
+import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 
 import markdown
@@ -71,40 +75,108 @@ STYLE = """
 </style>
 """
 
-IMAGE_BASE_URL = "https://raw.githubusercontent.com/macayaven/rayuela/main/article_images/"
+ARTICLE_IMAGES_DIR = "article_images"
+IMAGE_BASE_URL_ENV = "RAYUELA_IMAGE_BASE_URL"
+GITHUB_REMOTE_RE = re.compile(
+    r"(?:https://github\.com/|git@github\.com:)(?P<repo>[^/]+/[^/.]+?)(?:\.git)?$"
+)
+MARKDOWN_EXTENSIONS = ["tables", "smarty"]
+INLINE_MARKDOWN_EXTENSIONS = ["smarty"]
 
 
-def convert(md_path: Path, html_path: Path) -> None:
-    """Render one article markdown file to standalone HTML."""
-    text = md_path.read_text(encoding="utf-8")
+def normalize_image_base_url(base_url: str) -> str:
+    """Ensure the configured image base URL ends with a slash."""
+    return base_url if base_url.endswith("/") else f"{base_url}/"
 
-    # Root article markdown uses bare PNG names; rewrite them to stable
-    # raw GitHub URLs so the exported HTML works outside the repo checkout.
-    text = re.sub(
-        r"\]\((p[12]_[^)]+\.(?:png|jpe?g|gif|webp))\)",
-        lambda match: f"]({IMAGE_BASE_URL}{match.group(1)})",
-        text,
+
+def parse_github_repo(remote_url: str) -> str | None:
+    """Extract the owner/repo slug from a GitHub remote URL."""
+    match = GITHUB_REMOTE_RE.fullmatch(remote_url.strip())
+    if match is None:
+        return None
+    return match.group("repo")
+
+
+def run_git(args: Sequence[str], cwd: Path) -> str | None:
+    """Run one git command and return stdout when it succeeds."""
+    result = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        check=False,
+        text=True,
     )
+    if result.returncode != 0:
+        return None
+    output = result.stdout.strip()
+    return output or None
 
-    # Convert image captions (lines starting with * after images) to styled divs
-    lines = text.split("\n")
-    processed = []
-    for line in lines:
+
+def resolve_image_base_url(base: Path, explicit: str | None = None) -> str:
+    """Pick the image base URL from CLI/env/git metadata, in that order."""
+    if explicit:
+        return normalize_image_base_url(explicit)
+
+    env_base_url = os.getenv(IMAGE_BASE_URL_ENV)
+    if env_base_url:
+        return normalize_image_base_url(env_base_url)
+
+    remote_url = run_git(["config", "--get", "remote.origin.url"], base)
+    commit_sha = run_git(["rev-parse", "HEAD"], base)
+    repo_slug = parse_github_repo(remote_url) if remote_url else None
+    if repo_slug and commit_sha:
+        return f"https://raw.githubusercontent.com/{repo_slug}/{commit_sha}/{ARTICLE_IMAGES_DIR}/"
+
+    return f"{ARTICLE_IMAGES_DIR}/"
+
+
+def render_special_block(text: str, css_class: str) -> str:
+    """Render one special markdown line to styled HTML without losing links."""
+    content = text.strip().strip("*").strip()
+    rendered = markdown.markdown(
+        content,
+        extensions=INLINE_MARKDOWN_EXTENSIONS,
+        output_format="html5",
+    )
+    if css_class == "figure-caption":
+        return rendered.replace("<p>", f'<p class="{css_class}">', 1)
+    return f'<div class="{css_class}">{rendered}</div>'
+
+
+def preprocess_special_blocks(text: str) -> str:
+    """Convert caption and attribution marker lines to styled HTML blocks."""
+    processed: list[str] = []
+    for line in text.splitlines():
         if (
             line.startswith("*Figure")
             or line.startswith("*This is Part")
             or line.startswith("*All interactive")
         ):
-            processed.append(f'<p class="figure-caption">{line.strip("*")}</p>')
+            processed.append(render_special_block(line, "figure-caption"))
         elif line.startswith("*This article is the result"):
-            processed.append(f'<div class="attribution">{line.strip("*")}</div>')
+            processed.append(render_special_block(line, "attribution"))
         else:
             processed.append(line)
-    text = "\n".join(processed)
+    return "\n".join(processed)
+
+
+def convert(md_path: Path, html_path: Path, image_base_url: str) -> None:
+    """Render one article markdown file to standalone HTML."""
+    text = md_path.read_text(encoding="utf-8")
+    normalized_image_base_url = normalize_image_base_url(image_base_url)
+
+    # Root article markdown uses bare PNG names; rewrite them to stable
+    # image URLs so the exported HTML works outside the repo checkout.
+    text = re.sub(
+        r"\]\((p[12]_[^)]+\.(?:png|jpe?g|gif|webp))\)",
+        lambda match: f"]({normalized_image_base_url}{match.group(1)})",
+        text,
+    )
+    text = preprocess_special_blocks(text)
 
     html_body = markdown.markdown(
         text,
-        extensions=["tables", "smarty"],
+        extensions=MARKDOWN_EXTENSIONS,
         output_format="html5",
     )
 
@@ -125,11 +197,33 @@ def convert(md_path: Path, html_path: Path) -> None:
     print(f"  {md_path.name} -> {html_path.name}")
 
 
-def main(base: Path | None = None) -> None:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments for export configuration."""
+    parser = argparse.ArgumentParser(
+        description="Convert the root article markdown files to Medium-friendly HTML."
+    )
+    parser.add_argument(
+        "--base-dir",
+        type=Path,
+        default=None,
+        help="Repository root containing the ARTICLE_PART*_MEDIUM.md files.",
+    )
+    parser.add_argument(
+        "--image-base-url",
+        default=None,
+        help=(
+            f"Base URL for article images. Overrides the {IMAGE_BASE_URL_ENV} environment variable."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(base: Path | None = None, image_base_url: str | None = None) -> None:
     """Regenerate the root HTML article exports from the current markdown sources."""
     if base is None:
         base = Path(__file__).resolve().parent.parent
 
+    resolved_image_base_url = resolve_image_base_url(base, image_base_url)
     article_pairs = [
         ("ARTICLE_PART1_MEDIUM.md", "ARTICLE_PART1_MEDIUM.html"),
         ("ARTICLE_PART2_MEDIUM.md", "ARTICLE_PART2_MEDIUM.html"),
@@ -139,9 +233,10 @@ def main(base: Path | None = None) -> None:
         md_file = base / md_name
         html_file = base / html_name
         if md_file.exists():
-            convert(md_file, html_file)
+            convert(md_file, html_file, resolved_image_base_url)
     print("Done.")
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    args = parse_args()
+    main(args.base_dir, args.image_base_url)
