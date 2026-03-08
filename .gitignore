@@ -1,11 +1,9 @@
-# Data files (copyrighted text — never version)
-data/*.epub
-data/*.pdf
-data/*.txt
-data/*.json
-data/**/*.npy
-data/calibration/
-data/corpus/
+# Local research assets (copyrighted text and reproducible artifacts)
+data/
+outputs/
+docs/
+article_images/
+ARTICLE_PART*_MEDIUM.html
 
 # Old packages and local deliverables
 *.tar.gz
@@ -14,8 +12,6 @@ publication/
 # Local prompt versions with embedded copyrighted text
 prompts/*_local.txt
 
-# Outputs (reproducible from code)
-outputs/
 *.npy
 
 # Python
