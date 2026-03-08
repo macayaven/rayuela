@@ -1,0 +1,24 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format
+        language: python
+        additional_dependencies: ["ruff==0.15.5"]
+        types_or: [python]
+        files: ^(src/parsing\.py|scripts/check_file_hygiene\.py|scripts/md_to_html\.py|scripts/prepare_ghpages\.py|tests/.*\.py)$
+      - id: ruff-check
+        name: ruff-check
+        entry: ruff check
+        language: python
+        additional_dependencies: ["ruff==0.15.5"]
+        types_or: [python]
+        files: ^(src/parsing\.py|scripts/check_file_hygiene\.py|scripts/md_to_html\.py|scripts/prepare_ghpages\.py|tests/.*\.py)$
+  - repo: local
+    hooks:
+      - id: basic-file-hygiene
+        name: basic-file-hygiene
+        entry: python3 scripts/check_file_hygiene.py
+        language: system
+        files: ^(src/parsing\.py|scripts/check_file_hygiene\.py|scripts/md_to_html\.py|scripts/prepare_ghpages\.py|tests/.*)$

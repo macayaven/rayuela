@@ -7,7 +7,6 @@ it with a CDN reference, reducing file sizes from ~4.7 MB to ~100-200 KB.
 """
 
 import re
-import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -21,21 +20,21 @@ PLOTLY_CDN = '<script src="https://cdn.plot.ly/plotly-3.3.1.min.js"></script>'
 INCLUDE_FILES = [
     # Article figures (referenced in Part 1)
     "article_permutation.html",  # Figure 3 — the hero figure
-    "article_smoothness.html",   # Figure 3 in old draft
-    "article_weaving.html",      # Figure 4
-    "article_journey.html",      # Figure 5
-    "article_heatmap.html",      # Full narrative DNA
-    "article_radar.html",        # Chapter fingerprints
-    "article_dual_heatmap.html", # Two reading orders compared
-    "article_dual.html",         # Dimension-by-dimension
-    "article_sections.html",     # Section profiles
+    "article_smoothness.html",  # Figure 3 in old draft
+    "article_weaving.html",  # Figure 4
+    "article_journey.html",  # Figure 5
+    "article_heatmap.html",  # Full narrative DNA
+    "article_radar.html",  # Chapter fingerprints
+    "article_dual_heatmap.html",  # Two reading orders compared
+    "article_dual.html",  # Dimension-by-dimension
+    "article_sections.html",  # Section profiles
     "article_correlation.html",  # Dimension correlations
     # UMAP projections
-    "umap_comparison.html",      # Figure 2
+    "umap_comparison.html",  # Figure 2
     "umap_scale_a.html",
     "umap_scale_b.html",
     # 3D explorations
-    "3d_scale_a.html",           # Figure 1
+    "3d_scale_a.html",  # Figure 1
     "3d_scale_b_full.html",
     "3d_scale_b_top8var.html",
     "3d_scale_b_pca5.html",
@@ -58,7 +57,10 @@ def strip_inline_plotly(html: str) -> str:
 
     if count == 0:
         # Try alternative pattern (PlotlyConfig line + library)
-        pattern2 = r'<script type="text/javascript">window\.PlotlyConfig.*?</script>\s*<script type="text/javascript">/\*\*\s*\n\* plotly\.js.*?</script>'
+        pattern2 = (
+            r'<script type="text/javascript">window\.PlotlyConfig.*?</script>\s*'
+            r'<script type="text/javascript">/\*\*\s*\n\* plotly\.js.*?</script>'
+        )
         result, count = re.subn(pattern2, PLOTLY_CDN, html, count=1, flags=re.DOTALL)
 
     if count == 0:
@@ -78,7 +80,12 @@ def create_index_page(files: list[str]) -> str:
 
     def make_card(filename: str) -> str:
         # Convert filename to readable title
-        name = filename.replace(".html", "").replace("article_", "").replace("umap_", "UMAP: ").replace("3d_", "3D: ")
+        name = (
+            filename.replace(".html", "")
+            .replace("article_", "")
+            .replace("umap_", "UMAP: ")
+            .replace("3d_", "3D: ")
+        )
         name = name.replace("_", " ").title()
         return f'      <a href="{filename}" class="card">{name}</a>'
 
@@ -163,7 +170,9 @@ def create_index_page(files: list[str]) -> str:
 <body>
 
 <h1>What Does a Novel Look Like From the Inside?</h1>
-<p class="subtitle">Interactive Visualizations for the Computational Analysis of Cortazar's <em>Rayuela</em></p>
+<p class="subtitle">
+  Interactive Visualizations for the Computational Analysis of Cortazar's <em>Rayuela</em>
+</p>
 
 <p class="intro">
   These interactive charts accompany our article on using AI to map the hidden structure of
@@ -197,7 +206,8 @@ def create_index_page(files: list[str]) -> str:
 """
 
 
-def main():
+def main() -> None:
+    """Copy selected Plotly exports into docs/ and rebuild the Pages index."""
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
     processed = []
@@ -229,8 +239,8 @@ def main():
     total_src = sum((SOURCE_DIR / f).stat().st_size for f in processed)
     total_dst = sum((DOCS_DIR / f).stat().st_size for f in processed)
     total_dst += (DOCS_DIR / "index.html").stat().st_size
-    print(f"\n  Total: {total_src/1e6:.1f} MB -> {total_dst/1e6:.1f} MB")
+    print(f"\n  Total: {total_src / 1e6:.1f} MB -> {total_dst / 1e6:.1f} MB")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -1,0 +1,83 @@
+[tool.pytest.ini_options]
+addopts = """
+  -q
+  --cov
+  --cov-branch
+  --cov-report=term-missing
+  --cov-report=xml
+  --cov-fail-under=85
+"""
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+include = [
+  "src/parsing.py",
+  "src/project_config.py",
+  "scripts/md_to_html.py",
+  "scripts/prepare_ghpages.py",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+  "article_images",
+  "data",
+  "docs",
+  "notebooks",
+  "outputs",
+]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP", "W"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+files = [
+  "src/parsing.py",
+  "src/project_config.py",
+  "scripts/md_to_html.py",
+  "scripts/prepare_ghpages.py",
+  "tests",
+]
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+pretty = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["markdown"]
+ignore_missing_imports = true
+
+[tool.interrogate]
+fail-under = 85
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = true
+ignore-nested-functions = true
+ignore-private = true
+ignore-property-decorators = true
+ignore-semiprivate = true
+exclude = [
+  ".git",
+  ".github",
+  "article_images",
+  "data",
+  "docs",
+  "notebooks",
+  "outputs",
+  "tests",
+]
