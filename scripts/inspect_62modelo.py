@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+import glob
 import os
 import zipfile
-import glob
 
 data_dir = "/home/carlos/education/rayuela/data"
 os.chdir(data_dir)
@@ -23,7 +23,7 @@ else:
             print(f"Text files found: {len(text_files)}")
             for n in text_files:
                 print(f"    {n}")
-            
+
             # Also check image count
             image_files = [n for n in names if n.endswith(('.jpg', '.jpeg', '.png', '.gif'))]
             print(f"\nImage files found: {len(image_files)}")

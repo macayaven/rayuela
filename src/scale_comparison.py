@@ -13,19 +13,29 @@ Usage (inside Docker container):
 """
 
 import json
+
 import numpy as np
-from pathlib import Path
 from scipy import stats
 
 from project_config import (
-    PROJECT_ROOT, DATA_PATH,
-    STYLO_PATH, STYLO_META_PATH, EMB_A_PATH, EMB_B_PATH,
-    STYLE_LLM_PATH, STYLE_LLM_JSON_PATH,
-    DistanceMetric, RNG_SEED, N_PERMS,
-    z_score as compute_z_score, z_standardize, get_all_chapters,
+    DATA_PATH,
+    EMB_A_PATH,
+    EMB_B_PATH,
+    N_PERMS,
+    PROJECT_ROOT,
+    RNG_SEED,
+    STYLE_LLM_JSON_PATH,
+    STYLE_LLM_PATH,
+    STYLO_META_PATH,
+    STYLO_PATH,
+    DistanceMetric,
     filter_excluded_dims,
+    get_all_chapters,
+    z_standardize,
 )
-
+from project_config import (
+    z_score as compute_z_score,
+)
 
 # ---------------------------------------------------------------------------
 # Distance / similarity metrics
@@ -49,7 +59,11 @@ def mean_consecutive_cosine(matrix, path):
 
 
 def permutation_dist(matrix, chapters, n_perms, rng, metric=DistanceMetric.EUCLIDEAN):
-    fn = mean_consecutive_distance if metric == DistanceMetric.EUCLIDEAN else mean_consecutive_cosine
+    fn = (
+        mean_consecutive_distance
+        if metric == DistanceMetric.EUCLIDEAN
+        else mean_consecutive_cosine
+    )
     chapters_arr = np.array(chapters)
     results = np.empty(n_perms)
     for i in range(n_perms):
@@ -78,7 +92,7 @@ def correlate_scales(stylo, stylo_meta, style_llm, style_llm_json):
     print("=" * 65)
 
     # For each B' dimension, find the most correlated A' feature
-    print(f"\n  Best A' correlate for each B' dimension:")
+    print("\n  Best A' correlate for each B' dimension:")
     print(f"  {'B dimension':<30} {'Best A feature':<25} {'r':>8} {'p':>10}")
     print(f"  {'─' * 30} {'─' * 25} {'─' * 8} {'─' * 10}")
 
@@ -106,11 +120,14 @@ def correlate_scales(stylo, stylo_meta, style_llm, style_llm_json):
 
     # Also: correlation between A' and B' pairwise distance matrices
     # (Do chapters that are stylistically similar in A' also look similar in B'?)
-    from scipy.spatial.distance import pdist, squareform
+    from scipy.spatial.distance import pdist
     dist_a = pdist(stylo, metric=DistanceMetric.EUCLIDEAN.value)
     dist_b = pdist(style_llm, metric=DistanceMetric.EUCLIDEAN.value)
     mantel_r, mantel_p = stats.spearmanr(dist_a, dist_b)
-    print(f"  Mantel-like correlation (pairwise distance matrices): r={mantel_r:.3f}, p={mantel_p:.2e}")
+    print(
+        "  Mantel-like correlation (pairwise distance matrices): "
+        f"r={mantel_r:.3f}, p={mantel_p:.2e}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +139,7 @@ def correlate_all_scales(scales: dict):
     from scipy.spatial.distance import pdist
 
     names = list(scales.keys())
-    print(f"\n  Pairwise distance-matrix correlations (Mantel Spearman r):")
+    print("\n  Pairwise distance-matrix correlations (Mantel Spearman r):")
     print(f"  {'':>25}", end="")
     for n in names:
         print(f" {n:>12}", end="")
@@ -225,7 +242,7 @@ def main():
         })
     else:
         print(f"\n  [SKIP] Scale B' — {STYLE_LLM_PATH} not found")
-        print(f"         Still running? Check: docker logs rayuela-extract-style")
+        print("         Still running? Check: docker logs rayuela-extract-style")
 
     # --- Summary table ---
     print("\n" + "=" * 65)

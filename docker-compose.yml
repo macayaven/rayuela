@@ -11,8 +11,15 @@
 
 services:
   rayuela:
-    build: .
+    build:
+      context: .
+      args:
+        RAYUELA_USER: ${RAYUELA_USER:-carlos}
+        RAYUELA_GROUP: ${RAYUELA_GROUP:-carlos}
+        RAYUELA_UID: ${RAYUELA_UID:-1000}
+        RAYUELA_GID: ${RAYUELA_GID:-1000}
     image: rayuela:latest
+    user: "${RAYUELA_UID:-1000}:${RAYUELA_GID:-1000}"
     runtime: nvidia
     deploy:
       resources:
@@ -30,11 +37,13 @@ services:
       - ./outputs:/workspace/rayuela/outputs
       - ./src:/workspace/rayuela/src
       - ./prompts:/workspace/rayuela/prompts
-      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ~/.cache/huggingface:/home/${RAYUELA_USER:-carlos}/.cache/huggingface
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+      - HOME=/home/${RAYUELA_USER:-carlos}
+      - HF_HOME=/home/${RAYUELA_USER:-carlos}/.cache/huggingface
       # vLLM runs on host network, so reach it via host gateway
       - VLLM_API_BASE=http://host.docker.internal:8000/v1
     stdin_open: true

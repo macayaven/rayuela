@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import os
 import glob
+import os
+
 import ebooklib
 from ebooklib import epub
 

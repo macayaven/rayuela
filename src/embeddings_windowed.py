@@ -16,9 +16,9 @@ Output: outputs/embeddings/window_embeddings.npz
 """
 
 import json
-import numpy as np
 from pathlib import Path
 
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ MIN_WORDS = 512      # only window chapters longer than this (word count)
 
 def load_chapters(data_path: Path) -> list[dict]:
     """Load chapter data from rayuela_raw.json."""
-    with open(data_path, "r", encoding="utf-8") as f:
+    with open(data_path, encoding="utf-8") as f:
         data = json.load(f)
     return data["chapters"]
 
@@ -335,7 +335,7 @@ def main():
         all_drifts = [d["mean_drift"] for d in all_drift_reports]
         rank = sorted(all_drifts, reverse=True).index(d36["mean_drift"]) + 1
         pct = rank / len(all_drifts) * 100
-        print(f"CARLOS'S PREDICTION — Ch. 36 texture consistency")
+        print("CARLOS'S PREDICTION — Ch. 36 texture consistency")
         print("─" * 65)
         print(f"  Mean drift: {d36['mean_drift']:.4f} "
               f"(rank {rank}/{len(all_drifts)}, top {pct:.0f}%)")
@@ -344,10 +344,13 @@ def main():
         median_drift = float(np.median(all_drifts))
         if d36["mean_drift"] < median_drift:
             print(f"  ✓ CONFIRMED: Ch. 36 has LESS internal drift than median ({median_drift:.4f})")
-            print(f"    → Cortázar's voice stays consistent across register changes.")
+            print("    → Cortázar's voice stays consistent across register changes.")
         else:
             print(f"  ✗ SURPRISED: Ch. 36 has MORE drift than median ({median_drift:.4f})")
-            print(f"    → The model detects the register shifts that Carlos expected to be invisible.")
+            print(
+                "    → The model detects the register shifts that Carlos "
+                "expected to be invisible."
+            )
 
 
 if __name__ == "__main__":

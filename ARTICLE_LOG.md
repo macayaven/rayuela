@@ -209,3 +209,118 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **For the article**: We didn't just flag a bad dimension and move on — we re-ran everything. The z-scores held. The figures held. The cross-scale correlations actually improved. That's the difference between a finding that depends on a specific configuration and one that reflects something real in the text.
 
 **Figures regenerated**: `article_images/figure{3,4,5,6,7,8,9,10}_*.png`, all `docs/*.html` (GitHub Pages).
+
+**Session end note**: Commit `e0fb4e9` pushed to origin. Articles pending text update (20→19D references + new IRR section) — Claude App prompt prepared for Carlos.
+
+### 2026-03-04 — Corpus Cleanup and the Disentanglement Question
+
+**Phase**: Phase 8A — Corpus Cleanup + External Review
+
+**What happened**: Built `src/corpus_cleanup.py` to clean 10 Latin American literary works (García Márquez, Sábato, Cortázar ×2, Borges ×2, Bolaño, Cabrera Infante, Rulfo, Quiroga) from various source formats (ePub, PDF, scanned). Each work required unique cleanup rules: Borges stories were segmented from single blobs using dual-signal detection (year markers + paragraph boundaries), Bolaño's PDF had broken words ("M exicanos"), Cabrera Infante had 428 running headers, and Rulfo's text was 60% critical apparatus. Final corpus: 152 chapters, 832K words, zero artifacts. Sent the Phase 8 plan to Gemini 3 Flash Preview and GPT-5.3 Codex for independent review.
+
+**Key finding/decision**: Both reviewers converged on a critical reframing: what we have is "operational decoupling" (A' measures style, B measures content), not mathematical disentanglement (Mantel r=0.42 shows they're partially coupled). Both recommended Path 1 (prompt-based transfer with generate-score-revise loop) as the right first approach, with tolerance bands instead of exact numeric targets. The corpus is sufficient for a pilot but weak for per-author generalization claims — single-work authors confound author style with book/topic/period.
+
+**For the article**: Before we could transfer anyone's style, we had to solve a more mundane problem: getting the text into shape. Ten novels, ten different data quality nightmares. Borges's stories were concatenated into a single wall of text. Bolaño's PDF had split words across line breaks. Rulfo's file was two-thirds critical apparatus and one-third novel. The cleanup took longer than the analysis — as it should. In computational literary analysis, data quality isn't a preliminary step. It's the foundation.
+
+**Visuals**: None (infrastructure phase).
+
+---
+
+### 2026-03-08 — Part 3 Phase 0: Quality Envelope and Observability
+
+**Phase**: Part 3 — Phase 0 (Quality Envelope and Observability)
+
+**What happened**: Implemented the first reconstruction module, `src/reconstruction_contract.py`, to centralize the Part 3 output tree, enforce project-relative paths, seed Python/NumPy/torch/splitter state deterministically, and persist immutable run manifests under `outputs/reconstruction/`. Added `tests/test_reconstruction_contract.py` first, then wired the new module into the coverage and mypy scopes in `pyproject.toml`, documented the manifest contract in `README.md`, and wrote a dry-run manifest to `outputs/reconstruction/runs/phase0-dry-run-20260308a/manifest.json`.
+
+**Key decision**: Failed runs must remain inspectable and run IDs must be immutable. The contract mirrors each run manifest into `outputs/reconstruction/manifests/` for global lookup, but the per-run directory under `outputs/reconstruction/runs/<run_id>/` remains the source of truth and is never reused.
+
+**Verification**:
+- `pytest tests/test_reconstruction_contract.py -q` passed
+- full `pytest -q` passed
+- `ruff check src/reconstruction_contract.py tests/test_reconstruction_contract.py` passed
+- repo-wide `ruff check src tests scripts` was still red at the end of the initial Phase 0 implementation because of pre-existing lint debt outside the reconstruction files; the baseline was restored in the follow-up cleanup recorded alongside Phase 1
+- full `mypy` passed
+- dry-run manifest write passed without generation
+
+**For Part 3**: The experiment now has a concrete run contract before any generation begins. Every later phase can inherit the same metadata envelope: git SHA, seed bundle, config hash, corpus manifest, split manifest, and run-local artifact paths.
+
+### 2026-03-08 — Part 3 Phase 1: Corpus Synchronization Audit Baseline
+
+**Phase**: Part 3 — Phase 1 (Corpus Synchronization and Audit)
+
+**What happened**: Added `src/reconstruction_audit.py` and `tests/test_reconstruction_audit.py` test-first to compare the cleaned comparison corpus against the committed stylometric and semantic outputs. The audit generates a machine-readable corpus manifest and flags stale coverage, missing aggregates, orphan outputs, and profile drift without collapsing the result into a single pass/fail sentence. The implementation keeps the claim narrow: this is an operational decoupling audit of the measurement stack, not a claim that the corpus is now permanently synchronized.
+
+**Current audit baseline**:
+- cleaned corpus total: 10 works / 495 segments
+- stale stylometric outputs: `bolano_detectivessalvajes` (3 vs 194), `cabrerainfante_trestistestigres` (1 vs 40), `cortazar_62modelo` (1 vs 44), `rulfo_pedroparamo` (1 vs 71)
+- missing aggregate: `outputs/corpus/author_profiles_semantic.json`
+- stale aggregate drift in `author_profiles_stylo.json`, including a Cortázar profile that still mixes `Rayuela` into the corpus-only aggregate
+
+**Key decision**: Corpus author profiles should be corpus-only by default. `src/corpus_stylometrics.py` and `src/corpus_semantic.py` now reserve `Rayuela` inclusion for an explicit `--include-rayuela` path instead of silently folding it into the comparison corpus aggregates.
+
+**Constraint encountered**: The canonical `outputs/corpus/` tree is owned by `nobody:nogroup` in this sandbox, so the Phase 1 audit could only write its generated artifacts under `outputs/reconstruction/analysis/` during this session. The code paths for `outputs/corpus/corpus_metadata.json` remain implemented, but in-place regeneration of the stale corpus outputs is blocked here by filesystem permissions, not by missing audit coverage.
+
+**Verification**:
+- `pytest tests/test_reconstruction_audit.py -q` passed
+- repo-wide `ruff check src tests scripts` passed after baseline cleanup
+- full `pytest -q` passed
+- full `mypy` passed
+
+### 2026-03-09 — Part 3 Phase 2: Measurement Contract and Control Harness
+
+**Phase**: Part 3 — Phase 2 (Measurement Contract, Controls, and Baselines)
+
+**What happened**: Added `src/reconstruction_metrics.py` and `tests/test_reconstruction_metrics.py` test-first to formalize the measurement layer that later rewrite experiments will rely on. The new module loads corpus-aligned stylometric and semantic outputs, filters excluded semantic dimensions, computes typed per-dimension baselines, scores candidate rewrites against source semantics and target stylistic envelopes, and writes deterministic identity/copy-source/random-target control diagnostics under `outputs/reconstruction/baselines/`.
+
+**Key decision**: Phase 2 should fail loudly when the measurement layer is stale instead of silently building baselines from mismatched files. The implementation therefore treats synchronized chapter counts and dimension orders as part of the contract, not as advisory metadata.
+
+**Constraint encountered**: The Phase 2 CLI cannot lock the live corpus baselines yet because `outputs/corpus/` is still root-owned in this environment and the known stale stylometric work outputs remain unreadable as a clean synchronized set. The code path is implemented and the synthetic fixture path is green, but the live baseline artifact write is blocked by the unresolved Phase 1 filesystem state rather than by missing Phase 2 tests.
+
+**Verification**:
+- `pytest tests/test_reconstruction_metrics.py -q --no-cov` passed
+- full `pytest -q` passed
+- full `ruff check src tests scripts` passed
+- full `mypy` passed
+
+**For Part 3**: The experiment now has a concrete scoring contract before prompt baselines or training. Later phases can compare identity, copy-source, prompt-only, and fine-tuned rewrites against the same baseline registry and tolerance vocabulary instead of inventing evaluation on the fly.
+
+### 2026-03-09 — Part 3 Phase 3: Leakage-Safe Dataset and Pilot Design
+
+**Phase**: Part 3 — Phase 3 (Leakage-Safe Dataset and Pilot Design)
+
+**What happened**: Added `src/reconstruction_dataset.py` and `tests/test_reconstruction_dataset.py` test-first to turn the synchronized comparison corpus and locked measurement layer into deterministic pilot artifacts. The new module extracts non-overlapping 128-256 word chapter windows, assigns chapter-aware train/validation/test splits, audits same-chapter and near-duplicate leakage, builds target work envelopes from train-split provenance, selects held-out source windows, and serializes explicit success criteria under operational decoupling language.
+
+**Key decision**: The pilot should be reproducible from saved manifests rather than from ad hoc notebook state. Phase 3 therefore writes the source windows, target envelopes, split manifest, and success criteria as first-class JSON artifacts under `outputs/reconstruction/pilots/`, and it refuses to proceed if the split audit finds leakage.
+
+**Verification**:
+- `pytest tests/test_reconstruction_dataset.py -q --no-cov` passed
+- full `pytest -q` passed
+- full `ruff check src tests scripts` passed
+- full `mypy` passed
+
+**For Part 3**: The experiment now has a locked pilot definition before prompt-only baselines or adapter training. Later phases can run against a fixed evaluation set, fixed target envelopes, and fixed tolerance bands instead of drifting the task definition between runs.
+
+### 2026-03-09 — Part 3 Phase 4: Prompt Baseline Driver and Revision Harness
+
+**Phase**: Part 3 — Phase 4 (Prompt Baselines and Generate-Score-Revise Controls)
+
+**What happened**: Added `src/reconstruction_baselines.py` and `tests/test_reconstruction_baselines.py` test-first to implement the Phase 4 prompt-only baseline harness. The new module defines versioned identity/paraphrase/style-shift/revise prompt templates, runs traceable generate-score-revise loops against the locked Phase 3 pilot, computes the weighted objective from the Phase 2 scoring contract, and persists full case histories plus summary/report artifacts inside immutable run directories under `outputs/reconstruction/runs/`.
+
+**Key decision**: Phase 4 should keep the prompt-control contract executable even when the live control model is not currently serving. The implementation therefore supports both a real OpenAI-compatible vLLM backend and a deterministic `--dry-run` path that exercises the exact manifest, history, and artifact envelope without claiming live prompt-baseline quality.
+
+**Current runtime baseline**:
+- targeted dry run completed as `phase4-dry-run-20260309a`
+- run artifacts written under `outputs/reconstruction/runs/phase4-dry-run-20260309a/`
+- dry-run summary for 2 locked style-shift cases: mean weighted objective `0.5655`, stop reason `no_objective_improvement`
+- local `http://localhost:8000/v1/models` is currently serving `RedHatAI/Llama-3.1-Nemotron-70B-Instruct-HF-FP8-dynamic`, not the locked Qwen prompt-control model
+
+**Constraint encountered**: A live Phase 4 prompt baseline should run against the Qwen vLLM service specified in the plan. During this session the host endpoint was occupied by the Nemotron replication service, so only the dry-run contract path was executed here. This is a serving-state prerequisite, not a missing Phase 4 implementation.
+
+**Verification**:
+- `pytest tests/test_reconstruction_baselines.py -q --no-cov` passed
+- `python src/reconstruction_baselines.py --run-id phase4-dry-run-20260309a --dry-run --max-cases 2 --max-iterations 2` passed
+- full `pytest -q` passed
+- full `ruff check src tests scripts` passed
+- full `mypy` passed
+
+**For Part 3**: The experiment now has the full prompt-baseline control harness before adapter training. Once the Qwen service is active again, the same locked pilot, scoring contract, and run-manifest envelope can be used for the real no-training baseline without redefining the task.
