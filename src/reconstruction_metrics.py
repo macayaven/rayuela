@@ -217,6 +217,15 @@ class MeasurementBaselineBundle:
 
 
 @dataclass(frozen=True)
+class MeasurementArtifacts:
+    """Loaded measurement matrices plus their derived baseline bundle."""
+
+    stylometric_measurements: MeasurementMatrix
+    semantic_measurements: MeasurementMatrix
+    baselines: MeasurementBaselineBundle
+
+
+@dataclass(frozen=True)
 class ToleranceConfig:
     """Tolerance thresholds used by rewrite scoring and controls."""
 
@@ -543,14 +552,14 @@ def compute_measurement_baseline(measurements: MeasurementMatrix) -> Measurement
     )
 
 
-def build_measurement_baselines(
+def load_measurement_artifacts(
     corpus_dir: Path = CORPUS_DIR,
     corpus_output_dir: Path = CORPUS_OUTPUT_DIR,
     corpus_works: dict[str, tuple[str, str]] | None = None,
     *,
     require_clean_audit: bool = True,
-) -> MeasurementBaselineBundle:
-    """Build stylometric and semantic baselines from corpus-aligned outputs."""
+) -> MeasurementArtifacts:
+    """Load aligned measurement matrices and derive Phase 2 baselines."""
     if require_clean_audit:
         from reconstruction_audit import audit_corpus_outputs
 
@@ -575,10 +584,31 @@ def build_measurement_baselines(
         corpus_works=corpus_works,
     )
 
-    return MeasurementBaselineBundle(
+    baselines = MeasurementBaselineBundle(
         stylometric=compute_measurement_baseline(stylometric_measurements),
         semantic=compute_measurement_baseline(semantic_measurements),
     )
+    return MeasurementArtifacts(
+        stylometric_measurements=stylometric_measurements,
+        semantic_measurements=semantic_measurements,
+        baselines=baselines,
+    )
+
+
+def build_measurement_baselines(
+    corpus_dir: Path = CORPUS_DIR,
+    corpus_output_dir: Path = CORPUS_OUTPUT_DIR,
+    corpus_works: dict[str, tuple[str, str]] | None = None,
+    *,
+    require_clean_audit: bool = True,
+) -> MeasurementBaselineBundle:
+    """Build stylometric and semantic baselines from corpus-aligned outputs."""
+    return load_measurement_artifacts(
+        corpus_dir=corpus_dir,
+        corpus_output_dir=corpus_output_dir,
+        corpus_works=corpus_works,
+        require_clean_audit=require_clean_audit,
+    ).baselines
 
 
 def _validate_vector_length(
@@ -887,33 +917,25 @@ def build_argument_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """Build Phase 2 baseline artifacts and deterministic control diagnostics."""
     args = build_argument_parser().parse_args(argv)
-    baselines = build_measurement_baselines(
+    artifacts = load_measurement_artifacts(
         corpus_dir=args.corpus_dir,
         corpus_output_dir=args.corpus_output_dir,
         require_clean_audit=not args.allow_audit_issues,
     )
-    stylometric_measurements = load_stylometric_measurements(
-        corpus_dir=args.corpus_dir,
-        corpus_output_dir=args.corpus_output_dir,
-    )
-    semantic_measurements = load_semantic_measurements(
-        corpus_dir=args.corpus_dir,
-        corpus_output_dir=args.corpus_output_dir,
-    )
     diagnostics = build_control_diagnostics(
-        stylometric_measurements,
-        semantic_measurements,
-        baselines.stylometric,
-        baselines.semantic,
+        artifacts.stylometric_measurements,
+        artifacts.semantic_measurements,
+        artifacts.baselines.stylometric,
+        artifacts.baselines.semantic,
         seed=args.seed,
     )
 
     stylometric_path = write_measurement_baseline(
-        baselines.stylometric,
+        artifacts.baselines.stylometric,
         args.stylometric_baseline_path,
     )
     semantic_path = write_measurement_baseline(
-        baselines.semantic,
+        artifacts.baselines.semantic,
         args.semantic_baseline_path,
     )
     diagnostics_path = write_control_diagnostics(diagnostics, args.control_diagnostics_path)
@@ -922,9 +944,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Stylometric: {project_relative_path(stylometric_path)}")
     print(f"  Semantic:    {project_relative_path(semantic_path)}")
     print(f"  Controls:    {project_relative_path(diagnostics_path)}")
-    print(f"  Chapters:    {baselines.stylometric.chapter_count}")
-    print(f"  Style dims:  {len(baselines.stylometric.dimension_order)}")
-    print(f"  Sem dims:    {len(baselines.semantic.dimension_order)}")
+    print(f"  Chapters:    {artifacts.baselines.stylometric.chapter_count}")
+    print(f"  Style dims:  {len(artifacts.baselines.stylometric.dimension_order)}")
+    print(f"  Sem dims:    {len(artifacts.baselines.semantic.dimension_order)}")
     return 0
 
 

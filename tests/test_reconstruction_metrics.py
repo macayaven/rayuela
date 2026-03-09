@@ -209,6 +209,65 @@ def test_semantic_baseline_stats_are_complete(tmp_path: Path) -> None:
     assert baseline.dimensions["metafiction"].stats.max == pytest.approx(10.0)
 
 
+def test_load_measurement_artifacts_reuses_measurements_for_baselines(tmp_path: Path) -> None:
+    corpus_dir = tmp_path / "data" / "corpus"
+    corpus_output_dir = tmp_path / "outputs" / "corpus"
+    corpus_works = {"alpha": ("Author A", "Alpha"), "beta": ("Author B", "Beta")}
+    _write_clean_work(corpus_dir, "alpha", "Author A", "Alpha", [1, 2])
+    _write_clean_work(corpus_dir, "beta", "Author B", "Beta", [1])
+    _write_stylometric_output(
+        corpus_output_dir,
+        "alpha",
+        np.array([[1.0, 3.0], [3.0, 5.0]]),
+        feature_names=["sent_len_mean", "mattr"],
+        feature_descriptions={
+            "sent_len_mean": "Mean sentence length in words",
+            "mattr": "Moving-average type-token ratio",
+        },
+    )
+    _write_stylometric_output(
+        corpus_output_dir,
+        "beta",
+        np.array([[5.0, 7.0]]),
+        feature_names=["sent_len_mean", "mattr"],
+        feature_descriptions={
+            "sent_len_mean": "Mean sentence length in words",
+            "mattr": "Moving-average type-token ratio",
+        },
+    )
+    _write_semantic_output(
+        corpus_output_dir,
+        "alpha",
+        [1, 2],
+        ["existential_questioning", "temporal_clarity", "metafiction"],
+        np.array([[2.0, 4.0, 6.0], [4.0, 6.0, 8.0]]),
+    )
+    _write_semantic_output(
+        corpus_output_dir,
+        "beta",
+        [1],
+        ["existential_questioning", "temporal_clarity", "metafiction"],
+        np.array([[6.0, 8.0, 10.0]]),
+    )
+
+    artifacts = reconstruction_metrics.load_measurement_artifacts(
+        corpus_dir=corpus_dir,
+        corpus_output_dir=corpus_output_dir,
+        corpus_works=corpus_works,
+    )
+
+    assert artifacts.stylometric_measurements.chapter_count == 3
+    assert artifacts.semantic_measurements.chapter_count == 3
+    assert artifacts.baselines.stylometric.chapter_count == 3
+    assert artifacts.baselines.semantic.chapter_count == 3
+    assert artifacts.baselines.stylometric.source_paths[0].endswith(
+        "outputs/corpus/alpha/chapter_stylometrics.npy"
+    )
+    assert artifacts.baselines.stylometric.source_paths[1].endswith(
+        "outputs/corpus/beta/chapter_stylometrics.npy"
+    )
+
+
 def test_metric_reproducibility_on_same_text() -> None:
     stylometric_baseline = _manual_baseline(
         "stylometric",
