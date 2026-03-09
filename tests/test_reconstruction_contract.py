@@ -246,12 +246,7 @@ def test_main_writes_dry_run_manifest(
     captured = capsys.readouterr()
 
     manifest_path = (
-        tmp_path
-        / "outputs"
-        / "reconstruction"
-        / "runs"
-        / "phase0-cli"
-        / "manifest.json"
+        tmp_path / "outputs" / "reconstruction" / "runs" / "phase0-cli" / "manifest.json"
     )
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 

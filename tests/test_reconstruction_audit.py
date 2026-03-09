@@ -153,8 +153,7 @@ def test_stylometric_coverage_is_complete(tmp_path: Path) -> None:
 
     assert report.is_clean is False
     assert any(
-        "alpha" in issue and "stylometric coverage mismatch" in issue
-        for issue in report.issues
+        "alpha" in issue and "stylometric coverage mismatch" in issue for issue in report.issues
     )
 
 
@@ -175,8 +174,7 @@ def test_semantic_coverage_is_complete(tmp_path: Path) -> None:
 
     assert report.is_clean is False
     assert any(
-        "alpha" in issue and "semantic coverage mismatch" in issue
-        for issue in report.issues
+        "alpha" in issue and "semantic coverage mismatch" in issue for issue in report.issues
     )
 
 
@@ -275,10 +273,14 @@ def test_main_writes_clean_artifacts(
     _write_profile(semantic_profile_path, "semantic", matching_profile)
 
     monkeypatch.setattr(reconstruction_audit, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(reconstruction_audit, "DEFAULT_AUTHOR_PROFILE_PATHS", {
-        "stylo": stylo_profile_path,
-        "semantic": semantic_profile_path,
-    })
+    monkeypatch.setattr(
+        reconstruction_audit,
+        "DEFAULT_AUTHOR_PROFILE_PATHS",
+        {
+            "stylo": stylo_profile_path,
+            "semantic": semantic_profile_path,
+        },
+    )
     monkeypatch.setattr(reconstruction_audit, "load_corpus_works", lambda: corpus_works)
 
     exit_code = reconstruction_audit.main(
@@ -318,10 +320,14 @@ def test_main_returns_nonzero_when_audit_finds_issues(
     _write_stylometric_output(corpus_output_dir, "alpha", rows=2, metadata_n_chapters=2)
 
     monkeypatch.setattr(reconstruction_audit, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(reconstruction_audit, "DEFAULT_AUTHOR_PROFILE_PATHS", {
-        "stylo": corpus_output_dir / "author_profiles_stylo.json",
-        "semantic": corpus_output_dir / "author_profiles_semantic.json",
-    })
+    monkeypatch.setattr(
+        reconstruction_audit,
+        "DEFAULT_AUTHOR_PROFILE_PATHS",
+        {
+            "stylo": corpus_output_dir / "author_profiles_stylo.json",
+            "semantic": corpus_output_dir / "author_profiles_semantic.json",
+        },
+    )
     monkeypatch.setattr(reconstruction_audit, "load_corpus_works", lambda: corpus_works)
 
     exit_code = reconstruction_audit.main(
@@ -374,10 +380,14 @@ def test_main_reuses_built_metadata_for_report_timestamp(
     _write_profile(semantic_profile_path, "semantic", matching_profile)
 
     monkeypatch.setattr(reconstruction_audit, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(reconstruction_audit, "DEFAULT_AUTHOR_PROFILE_PATHS", {
-        "stylo": stylo_profile_path,
-        "semantic": semantic_profile_path,
-    })
+    monkeypatch.setattr(
+        reconstruction_audit,
+        "DEFAULT_AUTHOR_PROFILE_PATHS",
+        {
+            "stylo": stylo_profile_path,
+            "semantic": semantic_profile_path,
+        },
+    )
     monkeypatch.setattr(reconstruction_audit, "load_corpus_works", lambda: corpus_works)
 
     exit_code = reconstruction_audit.main(

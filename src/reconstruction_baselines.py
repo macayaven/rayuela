@@ -321,9 +321,8 @@ class CorpusMeasurementBackend:
     def _load_nlp(self) -> Any:
         """Load the spaCy model lazily for candidate stylometrics."""
         if self._nlp is None:
-            import spacy
-
-            self._nlp = spacy.load("es_core_news_lg")
+            spacy_module = importlib.import_module("spacy")
+            self._nlp = spacy_module.load("es_core_news_lg")
             self._nlp.max_length = 2_000_000
         return self._nlp
 

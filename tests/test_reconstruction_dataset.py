@@ -172,9 +172,7 @@ def test_window_extraction_respects_word_bounds(tmp_path: Path) -> None:
         max_words=5,
     )
     alpha_chapter_one = [
-        window
-        for window in windows
-        if window.work_id == "alpha" and window.chapter_number == 1
+        window for window in windows if window.work_id == "alpha" and window.chapter_number == 1
     ]
 
     assert [window.word_count for window in alpha_chapter_one] == [5, 4]
@@ -216,14 +214,10 @@ def test_source_windows_do_not_overlap_eval_targets(tmp_path: Path) -> None:
     )
 
     envelope_window_ids = {
-        window_id
-        for envelope in envelopes
-        for window_id in envelope.provenance_window_ids
+        window_id for envelope in envelopes for window_id in envelope.provenance_window_ids
     }
     envelope_segments = {
-        segment_id
-        for envelope in envelopes
-        for segment_id in envelope.provenance_segment_ids
+        segment_id for envelope in envelopes for segment_id in envelope.provenance_segment_ids
     }
 
     assert len(source_windows) == 3
