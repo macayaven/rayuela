@@ -25,13 +25,18 @@ Usage (inside Docker container):
 
 import argparse
 import json
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 from scipy import stats
 from sklearn.metrics import cohen_kappa_score
 
 from project_config import (
-    PROJECT_ROOT, DIMS_ORDERED_ALL, DIMS_EXCLUDED, DIM_LABELS, DIM_GROUPS,
+    DIM_GROUPS,
+    DIM_LABELS,
+    DIMS_EXCLUDED,
+    DIMS_ORDERED_ALL,
+    PROJECT_ROOT,
 )
 
 # ---------------------------------------------------------------------------
@@ -271,8 +276,8 @@ def print_report(
     mean_rho_val = np.mean([r["spearman_r"] for r in validated])
     print(f"  All {n_all}D — mean ρ: {mean_rho_all:.3f}, mean κw: {mean_kw_all:.3f}")
     print(f"  Validated {len(validated)}D — mean ρ: {mean_rho_val:.3f}, mean κw: {mean_kw_val:.3f}")
-    print(f"    (Landis & Koch: >0.80 = almost perfect, 0.61–0.80 = substantial,")
-    print(f"     0.41–0.60 = moderate, 0.21–0.40 = fair, <0.20 = slight)")
+    print("    (Landis & Koch: >0.80 = almost perfect, 0.61–0.80 = substantial,")
+    print("     0.41–0.60 = moderate, 0.21–0.40 = fair, <0.20 = slight)")
     print()
 
     # Mean bias

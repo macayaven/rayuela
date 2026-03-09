@@ -32,10 +32,10 @@ Output: outputs/embeddings/chapter_stylometrics.npy      (155 × 26)
 
 import json
 import re
-import numpy as np
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 
+import numpy as np
 import spacy
 
 # ---------------------------------------------------------------------------
@@ -75,7 +75,7 @@ FRENCH_MARKERS = {
     "notre", "votre", "leur", "même", "très", "bien", "tout", "tous",
     "rien", "fait", "être", "avoir", "faire", "dire", "comme", "plus",
     "aussi", "encore", "alors", "donc", "où", "quand", "comment",
-    "pourquoi", "ici", "là", "oui", "non", "peut", "aussi", "autre",
+    "pourquoi", "ici", "là", "oui", "non", "peut", "autre",
     "peu", "trop", "jamais", "toujours", "chez", "entre", "sous",
     "après", "avant", "sans",
 }
@@ -144,10 +144,19 @@ FEATURE_SPEC = [
 # ---------------------------------------------------------------------------
 
 def load_chapters(data_path: Path) -> list[dict]:
-    """Load chapter data from rayuela_raw.json."""
-    with open(data_path, "r", encoding="utf-8") as f:
+    """Load chapter data from a JSON file with a 'chapters' array.
+
+    Handles both Rayuela schema (token_count) and corpus schema (word_count)
+    by normalizing to 'token_count' for compatibility.
+    """
+    with open(data_path, encoding="utf-8") as f:
         data = json.load(f)
-    return data["chapters"]
+    chapters = data["chapters"]
+    # Normalize field names: corpus uses word_count, Rayuela uses token_count
+    for ch in chapters:
+        if "token_count" not in ch and "word_count" in ch:
+            ch["token_count"] = ch["word_count"]
+    return chapters
 
 
 # ---------------------------------------------------------------------------
@@ -337,14 +346,33 @@ def extract_syntactic_features(doc) -> dict:
 # ---------------------------------------------------------------------------
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Scale A': Classical stylometric features (content-free)"
+    )
+    parser.add_argument(
+        "--input", default=str(DATA_PATH),
+        help=f"Input JSON path (default: {DATA_PATH.name})"
+    )
+    parser.add_argument(
+        "--output-dir", default=str(OUTPUT_DIR),
+        help=f"Output directory (default: {OUTPUT_DIR})"
+    )
+    args = parser.parse_args()
+
+    input_path = Path(args.input)
+    output_dir = Path(args.output_dir)
+
     print("=" * 65)
     print("Scale A' — Classical Stylometric Features")
     print("Content-free by construction")
     print("=" * 65)
+    print(f"Input: {input_path}")
+    print(f"Output: {output_dir}")
     print()
 
     # Load chapters
-    chapters = load_chapters(DATA_PATH)
+    chapters = load_chapters(input_path)
     print(f"Loaded {len(chapters)} chapters")
     print()
 
@@ -362,9 +390,9 @@ def main():
     all_features = np.zeros((len(chapters), n_features), dtype=np.float64)
 
     print(f"Extracting {n_features} features per chapter...")
-    print(f"  Feature groups: sentence structure (5), vocabulary (3),")
-    print(f"  function words (4), punctuation (7), syntax (2),")
-    print(f"  code-switching (2), readability (3)")
+    print("  Feature groups: sentence structure (5), vocabulary (3),")
+    print("  function words (4), punctuation (7), syntax (2),")
+    print("  code-switching (2), readability (3)")
     print()
 
     for i, ch in enumerate(chapters):
@@ -384,8 +412,8 @@ def main():
 
         # Progress every 10 chapters
         if (i + 1) % 10 == 0 or i == 0 or i == len(chapters) - 1:
-            print(f"  Ch.{ch['number']:>3d} ({i+1:>3d}/155) — "
-                  f"words={ch['token_count']:>5d}, "
+            print(f"  Ch.{ch['number']:>3d} ({i+1:>3d}/{len(chapters)}) — "
+                  f"words={ch.get('token_count', 0):>5d}, "
                   f"MATTR={combined['mattr']:.3f}, "
                   f"sent_len_mean={combined['sent_len_mean']:.1f}, "
                   f"parse_depth={combined['parse_depth_mean']:.1f}")
@@ -393,10 +421,10 @@ def main():
     print()
 
     # --- Save outputs ---
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Feature matrix
-    npy_path = OUTPUT_DIR / "chapter_stylometrics.npy"
+    npy_path = output_dir / "chapter_stylometrics.npy"
     np.save(npy_path, all_features)
     print(f"Feature matrix saved: {npy_path}")
     print(f"  Shape: {all_features.shape}")
@@ -419,14 +447,14 @@ def main():
             "median": float(np.median(col)),
         }
 
-    meta_path = OUTPUT_DIR / "chapter_stylometrics_metadata.json"
+    meta_path = output_dir / "chapter_stylometrics_metadata.json"
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
     print(f"Metadata saved:      {meta_path}")
     print()
 
     # --- Summary table ---
-    print("Feature summary (all 155 chapters):")
+    print(f"Feature summary (all {len(chapters)} chapters):")
     print(f"  {'Feature':<22} {'Mean':>8} {'Std':>8} {'Min':>8} {'Max':>8}")
     print(f"  {'─' * 22} {'─' * 8} {'─' * 8} {'─' * 8} {'─' * 8}")
     for j, name in enumerate(feature_names):

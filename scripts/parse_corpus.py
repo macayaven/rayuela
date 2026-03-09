@@ -12,14 +12,12 @@ Input:  EPUB files in data/ directory
 Output: JSON files and preprocessing logs in data/corpus/
 """
 
-import os
-import re
 import json
-import zipfile
-from pathlib import Path
-from bs4 import BeautifulSoup
-from collections import Counter
+import re
 from datetime import datetime
+from pathlib import Path
+
+from bs4 import BeautifulSoup
 
 # Configuration
 DATA_DIR = Path("/home/carlos/education/rayuela/data")
@@ -111,13 +109,25 @@ WORK_METADATA = {
 
 # Editorial patterns to strip
 EDITORIAL_PATTERNS = {
-    "toc": re.compile(r'^(índice|tabla de contenido|contenido|table of contents)\s*$', re.IGNORECASE),
-    "copyright": re.compile(r'(copyright|©|todos los derechos reservados|derechos reservados)', re.IGNORECASE),
+    "toc": re.compile(
+        r"^(índice|tabla de contenido|contenido|table of contents)\s*$",
+        re.IGNORECASE,
+    ),
+    "copyright": re.compile(
+        r"(copyright|©|todos los derechos reservados|derechos reservados)",
+        re.IGNORECASE,
+    ),
     "isbn": re.compile(r'ISBN[\s\d-]{10,20}', re.IGNORECASE),
-    "publisher_blurb": re.compile(r'^(editorial\s|published by|publicado por|colección|biblioteca)', re.IGNORECASE),
+    "publisher_blurb": re.compile(
+        r"^(editorial\s|published by|publicado por|colección|biblioteca)",
+        re.IGNORECASE,
+    ),
     "page_number": re.compile(r'^\s*\d+\s*$', re.MULTILINE),
     "running_header": re.compile(r'^[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{2,39}$', re.MULTILINE),
-    "chapter_number_standalone": re.compile(r'^(capítulo|cap\.?|parte|part|section|sección)\s*(\d+|[IVX]+)', re.IGNORECASE),
+    "chapter_number_standalone": re.compile(
+        r"^(capítulo|cap\.?|parte|part|section|sección)\s*(\d+|[IVX]+)",
+        re.IGNORECASE,
+    ),
     # Only match standalone navigation markers, not lines that happen to contain digits
     "navigation_marker": re.compile(r'^\s*(→|»|siguiente|next|continue)\s*\d*\s*$', re.IGNORECASE),
 }
@@ -128,6 +138,38 @@ PRESERVE_PATTERNS = {
     "dedication": re.compile(r'^(A |Para |Dedicado a |For |À )', re.IGNORECASE),
     "fictional_footnote": re.compile(r'\[\d+\]|\(\d+\)', re.MULTILINE),
     "embedded_poem": re.compile(r'^\s{4,}\w', re.MULTILINE),
+}
+
+FRENCH_MARKERS = {
+    "le",
+    "la",
+    "les",
+    "un",
+    "une",
+    "est",
+    "dans",
+    "avec",
+    "pour",
+    "que",
+    "je",
+    "tu",
+    "il",
+}
+ENGLISH_MARKERS = {"the", "and", "is", "in", "of", "to", "a", "that", "it", "for"}
+SPANISH_MARKERS = {
+    "el",
+    "la",
+    "los",
+    "las",
+    "un",
+    "una",
+    "es",
+    "en",
+    "de",
+    "que",
+    "yo",
+    "tú",
+    "él",
 }
 
 
@@ -146,7 +188,7 @@ class EPUBParser:
         self.encoding_issues = []
         self.numbering_irregularities = []
         self.ambiguous_cases = []
-        
+
         # Look up metadata with Unicode normalization
         filename_nfc = unicodedata.normalize("NFC", self.filename)
         self.metadata = {}
@@ -154,7 +196,7 @@ class EPUBParser:
             if unicodedata.normalize("NFC", key) == filename_nfc:
                 self.metadata = meta
                 break
-        
+
     def log(self, section: str, message: str):
         """Add entry to preprocessing log."""
         self.preprocessing_log.append({
@@ -162,113 +204,108 @@ class EPUBParser:
             "message": message,
             "timestamp": datetime.now().isoformat(),
         })
-    
+
     def detect_language(self, text: str) -> dict:
         """Detect language mixing in text."""
-        # Simple heuristic based on common words
-        french_markers = {"le", "la", "les", "un", "une", "est", "dans", "avec", "pour", "que", "je", "tu", "il"}
-        english_markers = {"the", "and", "is", "in", "of", "to", "a", "that", "it", "for"}
-        spanish_markers = {"el", "la", "los", "las", "un", "una", "es", "en", "de", "que", "yo", "tú", "él"}
-        
         words = set(re.findall(r'\b[a-záéíóúñ]+\b', text.lower()))
-        
-        fr_count = len(words & french_markers)
-        en_count = len(words & english_markers)
-        es_count = len(words & spanish_markers)
-        
+
+        fr_count = len(words & FRENCH_MARKERS)
+        en_count = len(words & ENGLISH_MARKERS)
+        es_count = len(words & SPANISH_MARKERS)
+
         # Spanish is baseline, count others as code-switching
         self.language_data["es"] += es_count
         self.language_data["fr"] += fr_count
         self.language_data["en"] += en_count
-        
+
         return {"es": es_count, "fr": fr_count, "en": en_count}
-    
+
     def strip_editorial(self, text: str, chapter_num: int = None) -> str:
         """Remove editorial apparatus while preserving authorial content."""
         original_text = text
         lines = text.split('\n')
         cleaned_lines = []
-        
+
         for i, line in enumerate(lines):
             stripped = line.strip()
-            
+
             # Skip empty lines at start/end (will be re-added for paragraph structure)
             if not stripped and (i == 0 or i == len(lines) - 1):
                 continue
-            
+
             # Check for editorial patterns
             is_editorial = False
-            
+
             # Table of contents markers
             if EDITORIAL_PATTERNS["toc"].search(stripped):
                 self.stripped_elements.append(("TOC marker", stripped[:100]))
                 is_editorial = True
-            
+
             # Copyright lines
             if EDITORIAL_PATTERNS["copyright"].search(stripped):
                 self.stripped_elements.append(("Copyright", stripped[:100]))
                 is_editorial = True
-            
+
             # ISBN
             if EDITORIAL_PATTERNS["isbn"].search(stripped):
                 self.stripped_elements.append(("ISBN", stripped[:100]))
                 is_editorial = True
-            
+
             # Publisher blurbs
             if EDITORIAL_PATTERNS["publisher_blurb"].search(stripped) and len(stripped) < 200:
                 self.stripped_elements.append(("Publisher blurb", stripped[:100]))
                 is_editorial = True
-            
+
             # Standalone page numbers
             if EDITORIAL_PATTERNS["page_number"].match(stripped):
                 self.stripped_elements.append(("Page number", stripped))
                 is_editorial = True
-            
+
             # Running headers (all caps short lines)
             if EDITORIAL_PATTERNS["running_header"].match(stripped) and len(stripped) < 50:
                 self.stripped_elements.append(("Running header", stripped))
                 is_editorial = True
-            
+
             # Chapter number standalone (we preserve the number in metadata)
             if EDITORIAL_PATTERNS["chapter_number_standalone"].match(stripped):
                 self.stripped_elements.append(("Chapter header", stripped))
                 is_editorial = True
-            
+
             if not is_editorial:
                 cleaned_lines.append(line)
-        
+
         result = '\n'.join(cleaned_lines)
-        
+
         if result != original_text:
             self.log("Stripped elements", f"Removed editorial content from chapter {chapter_num}")
-        
+
         return result
-    
+
     def extract_text_from_item(self, item_content: bytes) -> str:
         """Extract and clean text from EPUB XHTML item."""
         try:
             soup = BeautifulSoup(item_content, 'lxml-xml')
         except Exception:
             soup = BeautifulSoup(item_content, 'html.parser')
-        
+
         # Remove script and style
         for tag in soup(['script', 'style', 'nav', 'header', 'footer']):
             tag.decompose()
-        
+
         # Get text
         text = soup.get_text(separator='\n')
-        
+
         # Clean up whitespace
         text = re.sub(r'\n\s*\n', '\n\n', text)
         text = re.sub(r' +', ' ', text)
         text = text.strip()
-        
+
         return text
-    
+
     def identify_chapters(self, items: list) -> list:
         """Identify chapter/story boundaries in EPUB items."""
         chapters = []
-        
+
         for i, item in enumerate(items):
             # Handle multiple item types:
             # Type 0 = HTML, Type 9 = XHTML
@@ -276,24 +313,33 @@ class EPUBParser:
             item_type = item.get_type()
             if item_type not in (0, 9):
                 continue
-            
+
             # Skip items without file_name
             if not hasattr(item, 'file_name') or not item.file_name:
                 continue
-            
+
             item_name = item.get_name().lower()
             item_href = item.file_name.lower()
-            
+
             # Skip non-content files
-            skip_patterns = ['toc', 'cover', 'title', 'copyright', 'info', 'nota', 'indice', 'notice']
+            skip_patterns = [
+                "toc",
+                "cover",
+                "title",
+                "copyright",
+                "info",
+                "nota",
+                "indice",
+                "notice",
+            ]
             if any(p in item_name or p in item_href for p in skip_patterns):
                 self.log("Chapter boundaries", f"Skipped non-content file: {item.get_name()}")
                 continue
-            
+
             # For scanned books with page_N.html format, we'll combine pages into chapters
             # Detect this pattern
             is_page_scan = bool(re.match(r'page_\d+\.html', item_name))
-            
+
             chapters.append({
                 "index": i,
                 "item": item,
@@ -301,34 +347,34 @@ class EPUBParser:
                 "href": item.file_name,
                 "is_page_scan": is_page_scan,
             })
-        
+
         return chapters
-    
+
     def parse(self) -> dict:
         """Parse EPUB into structured corpus."""
         from ebooklib import epub
-        
+
         self.log("Edition identification", f"Parsing: {self.filename}")
-        
+
         try:
             book = epub.read_epub(self.epub_path)
         except Exception as e:
             self.log("Edition identification", f"ERROR: {e}")
             return None
-        
+
         # Extract metadata
         title = self.metadata.get("title", "")
         author = self.metadata.get("author", "")
         year = self.metadata.get("year", 0)
-        
+
         dc_title = book.get_metadata("DC", "title")
         dc_creator = book.get_metadata("DC", "creator")
-        
+
         if dc_title and not title:
             title = str(dc_title[0][0]) if dc_title else "Unknown"
         if dc_creator and not author:
             author = str(dc_creator[0][0]) if dc_creator else "Unknown"
-        
+
         self.log("Edition identification", f"Title: {title}")
         self.log("Edition identification", f"Author: {author}")
         self.log("Edition identification", f"Year: {year}")
@@ -336,14 +382,14 @@ class EPUBParser:
         # Get all document items (type 0 = HTML, type 9 = xhtml content)
         doc_items = [item for item in book.get_items() if item.get_type() in (0, 9)]
         self.log("Edition identification", f"Found {len(doc_items)} document items")
-        
+
         # Identify chapters
         chapter_items = self.identify_chapters(doc_items)
         self.log("Chapter boundaries", f"Identified {len(chapter_items)} chapters/stories")
-        
+
         # Check if this is a scanned book (page_N.html format)
         is_scanned_book = any(ch.get("is_page_scan", False) for ch in chapter_items)
-        
+
         if is_scanned_book:
             self.log("Chapter boundaries", "Detected scanned book format (page_N.html)")
             # Combine all pages into one text, then split by story/chapter markers
@@ -356,20 +402,20 @@ class EPUBParser:
                         combined_pages.append(text)
                 except Exception as e:
                     self.log("Ambiguous cases", f"Error reading page {ch['name']}: {e}")
-            
+
             # For now, treat the combined text as a single chapter
             # (A more sophisticated approach would detect story boundaries)
             combined_text = '\n\n'.join(combined_pages)
-            
+
             # Detect language
             self.detect_language(combined_text)
-            
+
             # Strip editorial
             cleaned_text = self.strip_editorial(combined_text, chapter_num=1)
-            
+
             # Count words
             word_count = len(cleaned_text.split())
-            
+
             chapters_data = [{
                 "number": 1,
                 "title": None,
@@ -378,7 +424,10 @@ class EPUBParser:
                 "word_count": word_count,
             }]
             total_words = word_count
-            self.log("Chapter boundaries", f"Combined {len(combined_pages)} pages into 1 chapter ({word_count:,} words)")
+            self.log(
+                "Chapter boundaries",
+                f"Combined {len(combined_pages)} pages into 1 chapter ({word_count:,} words)",
+            )
         else:
             # Process each chapter normally
             chapters_data = []
@@ -390,7 +439,7 @@ class EPUBParser:
                     text = self.extract_text_from_item(content)
 
                     # Detect language mixing
-                    lang_counts = self.detect_language(text)
+                    self.detect_language(text)
 
                     # Strip editorial apparatus
                     cleaned_text = self.strip_editorial(text, chapter_num=i)
@@ -434,16 +483,22 @@ class EPUBParser:
                         "chapter": i,
                         "error": str(e),
                     })
-        
+
         # Detect code-switching
         other_languages = []
         if self.language_data["fr"] > 50:
             other_languages.append("fr")
-            self.log("Language detection", f"French code-switching detected ({self.language_data['fr']} markers)")
+            self.log(
+                "Language detection",
+                f"French code-switching detected ({self.language_data['fr']} markers)",
+            )
         if self.language_data["en"] > 50:
             other_languages.append("en")
-            self.log("Language detection", f"English code-switching detected ({self.language_data['en']} markers)")
-        
+            self.log(
+                "Language detection",
+                f"English code-switching detected ({self.language_data['en']} markers)",
+            )
+
         # Build output
         output = {
             "title": title,
@@ -462,40 +517,40 @@ class EPUBParser:
             },
             "chapters": chapters_data,
         }
-        
+
         return output
-    
+
     def get_preprocessing_report(self) -> str:
         """Generate markdown preprocessing report."""
         report = []
-        report.append(f"# Preprocessing Report")
-        report.append(f"")
+        report.append("# Preprocessing Report")
+        report.append("")
         report.append(f"**File**: {self.filename}")
         report.append(f"**Processed**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report.append(f"")
-        
+        report.append("")
+
         # Edition identification
-        report.append(f"## Edition Identification")
-        report.append(f"")
+        report.append("## Edition Identification")
+        report.append("")
         report.append(f"- **Title**: {self.metadata.get('title', 'Unknown')}")
         report.append(f"- **Author**: {self.metadata.get('author', 'Unknown')}")
         report.append(f"- **Year**: {self.metadata.get('year', 'Unknown')}")
         report.append(f"- **Source**: {self.filename}")
-        report.append(f"")
-        
+        report.append("")
+
         # Chapter boundaries
-        report.append(f"## Chapter Boundaries")
-        report.append(f"")
-        report.append(f"Chapters were identified by scanning EPUB document items and filtering out:")
-        report.append(f"- Table of contents files")
-        report.append(f"- Cover pages")
-        report.append(f"- Copyright pages")
-        report.append(f"- Editorial notes")
-        report.append(f"")
-        
+        report.append("## Chapter Boundaries")
+        report.append("")
+        report.append("Chapters were identified by scanning EPUB document items and filtering out:")
+        report.append("- Table of contents files")
+        report.append("- Cover pages")
+        report.append("- Copyright pages")
+        report.append("- Editorial notes")
+        report.append("")
+
         # Stripped elements
-        report.append(f"## Stripped Elements")
-        report.append(f"")
+        report.append("## Stripped Elements")
+        report.append("")
         if self.stripped_elements:
             # Group by type
             by_type = {}
@@ -504,81 +559,84 @@ class EPUBParser:
                     by_type[elem_type] = []
                 if len(by_type[elem_type]) < 5:  # Show up to 5 examples
                     by_type[elem_type].append(sample)
-            
+
             for elem_type, examples in by_type.items():
                 report.append(f"### {elem_type}")
                 for ex in examples:
                     report.append(f"- `{ex[:80]}...`" if len(ex) > 80 else f"- `{ex}`")
-                report.append(f"")
+                report.append("")
         else:
-            report.append(f"No editorial elements stripped.")
-            report.append(f"")
-        
+            report.append("No editorial elements stripped.")
+            report.append("")
+
         # Preserved elements
-        report.append(f"## Preserved Elements")
-        report.append(f"")
+        report.append("## Preserved Elements")
+        report.append("")
         if self.preserved_elements:
             for elem_type, sample in self.preserved_elements[:10]:
                 report.append(f"- **{elem_type}**: `{sample[:80]}`")
         else:
-            report.append(f"Standard authorial content preserved.")
-        report.append(f"")
-        
+            report.append("Standard authorial content preserved.")
+        report.append("")
+
         # Language detection
-        report.append(f"## Language Detection")
-        report.append(f"")
+        report.append("## Language Detection")
+        report.append("")
         report.append(f"- **Spanish (baseline)**: {self.language_data['es']} markers")
         report.append(f"- **French**: {self.language_data['fr']} markers")
         report.append(f"- **English**: {self.language_data['en']} markers")
         if self.language_data["fr"] > 50 or self.language_data["en"] > 50:
-            report.append(f"")
-            report.append(f"**Code-switching detected**")
-        report.append(f"")
-        
+            report.append("")
+            report.append("**Code-switching detected**")
+        report.append("")
+
         # Encoding issues
-        report.append(f"## Encoding Issues")
-        report.append(f"")
+        report.append("## Encoding Issues")
+        report.append("")
         if self.encoding_issues:
             for issue in self.encoding_issues[:5]:
                 report.append(f"- Chapter {issue['chapter']}: {issue['issue']}")
                 report.append(f"  Sample: `{issue['sample'][:60]}...`")
         else:
-            report.append(f"No encoding issues detected.")
-        report.append(f"")
-        
+            report.append("No encoding issues detected.")
+        report.append("")
+
         # Numbering irregularities
-        report.append(f"## Numbering Irregularities")
-        report.append(f"")
+        report.append("## Numbering Irregularities")
+        report.append("")
         if self.numbering_irregularities:
             for irreg in self.numbering_irregularities:
                 report.append(f"- {irreg}")
         else:
-            report.append(f"No numbering irregularities detected.")
-        report.append(f"")
-        
+            report.append("No numbering irregularities detected.")
+        report.append("")
+
         # Ambiguous cases
-        report.append(f"## Ambiguous Cases")
-        report.append(f"")
+        report.append("## Ambiguous Cases")
+        report.append("")
         if self.ambiguous_cases:
             for case in self.ambiguous_cases:
-                report.append(f"- Chapter {case.get('chapter', '?')}: {case.get('error', 'Unknown error')}")
+                report.append(
+                    f"- Chapter {case.get('chapter', '?')}: "
+                    f"{case.get('error', 'Unknown error')}"
+                )
         else:
-            report.append(f"No ambiguous cases.")
-        report.append(f"")
-        
+            report.append("No ambiguous cases.")
+        report.append("")
+
         # Preprocessing log
-        report.append(f"## Detailed Preprocessing Log")
-        report.append(f"")
+        report.append("## Detailed Preprocessing Log")
+        report.append("")
         for entry in self.preprocessing_log:
             report.append(f"- **{entry['section']}**: {entry['message']}")
-        report.append(f"")
-        
+        report.append("")
+
         return '\n'.join(report)
 
 
 class PDFParser:
     """Parse PDF files into structured JSON corpus."""
-    
+
     def __init__(self, pdf_path: Path):
         import unicodedata
         self.pdf_path = pdf_path
@@ -591,7 +649,7 @@ class PDFParser:
         self.encoding_issues = []
         self.numbering_irregularities = []
         self.ambiguous_cases = []
-        
+
         # Look up metadata with Unicode normalization
         filename_nfc = unicodedata.normalize("NFC", self.filename)
         self.metadata = {}
@@ -599,7 +657,7 @@ class PDFParser:
             if unicodedata.normalize("NFC", key) == filename_nfc:
                 self.metadata = meta
                 break
-    
+
     def log(self, section: str, message: str):
         """Add entry to preprocessing log."""
         self.preprocessing_log.append({
@@ -607,106 +665,102 @@ class PDFParser:
             "message": message,
             "timestamp": datetime.now().isoformat(),
         })
-    
+
     def detect_language(self, text: str) -> dict:
         """Detect language mixing in text."""
-        french_markers = {"le", "la", "les", "un", "une", "est", "dans", "avec", "pour", "que", "je", "tu", "il"}
-        english_markers = {"the", "and", "is", "in", "of", "to", "a", "that", "it", "for"}
-        spanish_markers = {"el", "la", "los", "las", "un", "una", "es", "en", "de", "que", "yo", "tú", "él"}
-        
         words = set(re.findall(r'\b[a-záéíóúñ]+\b', text.lower()))
-        
-        fr_count = len(words & french_markers)
-        en_count = len(words & english_markers)
-        es_count = len(words & spanish_markers)
-        
+
+        fr_count = len(words & FRENCH_MARKERS)
+        en_count = len(words & ENGLISH_MARKERS)
+        es_count = len(words & SPANISH_MARKERS)
+
         self.language_data["es"] += es_count
         self.language_data["fr"] += fr_count
         self.language_data["en"] += en_count
-        
+
         return {"es": es_count, "fr": fr_count, "en": en_count}
-    
+
     def strip_editorial(self, text: str, chapter_num: int = None) -> str:
         """Remove editorial apparatus while preserving authorial content."""
         original_text = text
         lines = text.split('\n')
         cleaned_lines = []
-        
+
         for i, line in enumerate(lines):
             stripped = line.strip()
-            
+
             if not stripped and (i == 0 or i == len(lines) - 1):
                 continue
-            
+
             is_editorial = False
-            
+
             if EDITORIAL_PATTERNS["toc"].search(stripped):
                 self.stripped_elements.append(("TOC marker", stripped[:100]))
                 is_editorial = True
-            
+
             if EDITORIAL_PATTERNS["copyright"].search(stripped):
                 self.stripped_elements.append(("Copyright", stripped[:100]))
                 is_editorial = True
-            
+
             if EDITORIAL_PATTERNS["isbn"].search(stripped):
                 self.stripped_elements.append(("ISBN", stripped[:100]))
                 is_editorial = True
-            
+
             if EDITORIAL_PATTERNS["publisher_blurb"].search(stripped) and len(stripped) < 200:
                 self.stripped_elements.append(("Publisher blurb", stripped[:100]))
                 is_editorial = True
-            
+
             if EDITORIAL_PATTERNS["page_number"].match(stripped):
                 self.stripped_elements.append(("Page number", stripped))
                 is_editorial = True
-            
+
             if EDITORIAL_PATTERNS["running_header"].match(stripped) and len(stripped) < 50:
                 self.stripped_elements.append(("Running header", stripped))
                 is_editorial = True
-            
+
             if EDITORIAL_PATTERNS["chapter_number_standalone"].match(stripped):
                 self.stripped_elements.append(("Chapter header", stripped))
                 is_editorial = True
-            
+
             if not is_editorial:
                 cleaned_lines.append(line)
-        
+
         result = '\n'.join(cleaned_lines)
-        
+
         if result != original_text:
             self.log("Stripped elements", f"Removed editorial content from chapter {chapter_num}")
-        
+
         return result
-    
+
     def parse(self) -> dict:
         """Parse PDF into structured corpus."""
         from PyPDF2 import PdfReader
-        
+
         self.log("Edition identification", f"Parsing: {self.filename}")
-        
+
         try:
             reader = PdfReader(self.pdf_path)
         except Exception as e:
             self.log("Edition identification", f"ERROR: {e}")
             return None
-        
+
         # Extract metadata
         title = self.metadata.get("title", "")
         author = self.metadata.get("author", "")
         year = self.metadata.get("year", 0)
-        
+
         pdf_meta = reader.metadata
         if pdf_meta:
             if not title and pdf_meta.get('/Title'):
                 title = str(pdf_meta.get('/Title', ''))
             if not author and pdf_meta.get('/Author'):
                 author = str(pdf_meta.get('/Author', ''))
-        
+
         self.log("Edition identification", f"Title: {title}")
         self.log("Edition identification", f"Author: {author}")
         self.log("Edition identification", f"Year: {year}")
         self.log("Edition identification", f"Pages: {len(reader.pages)}")
-        
+
         # Extract text from all pages
         all_text = []
         for i, page in enumerate(reader.pages):
@@ -716,44 +770,52 @@ class PDFParser:
                     all_text.append(text)
             except Exception as e:
                 self.log("Ambiguous cases", f"Error extracting page {i+1}: {e}")
-        
+
         full_text = '\n\n'.join(all_text)
-        
+
         # Detect language
         self.detect_language(full_text)
-        
+
         # Strip editorial
         cleaned_text = self.strip_editorial(full_text, chapter_num=1)
-        
+
         # Count words
         word_count = len(cleaned_text.split())
-        
+
         # For novels, we'll create chapter divisions based on patterns
         # Look for "Capítulo X" or similar patterns
-        chapter_pattern = re.compile(r'(?:^|\n\n)(?:CAPÍTULO|Capítulo|Cap\.?|PARTE|Parte|Part)\s*(?:Nº?\s*)?(\d+|[IVX]+)', re.MULTILINE)
+        chapter_pattern = re.compile(
+            r"(?:^|\n\n)(?:CAPÍTULO|Capítulo|Cap\.?|PARTE|Parte|Part)\s*"
+            r"(?:Nº?\s*)?(\d+|[IVX]+)",
+            re.MULTILINE,
+        )
         chapter_matches = list(chapter_pattern.finditer(cleaned_text))
-        
+
         chapters_data = []
-        
+
         if len(chapter_matches) > 1:
             # Split by chapters
             self.log("Chapter boundaries", f"Found {len(chapter_matches)} chapter markers")
-            
+
             for i, match in enumerate(chapter_matches):
                 start = match.start()
-                end = chapter_matches[i + 1].start() if i + 1 < len(chapter_matches) else len(cleaned_text)
-                
+                end = (
+                    chapter_matches[i + 1].start()
+                    if i + 1 < len(chapter_matches)
+                    else len(cleaned_text)
+                )
+
                 chapter_text = cleaned_text[start:end]
                 chapter_num_str = match.group(1)
-                
+
                 # Convert Roman numerals if needed
                 try:
                     chapter_num = int(chapter_num_str)
                 except ValueError:
                     chapter_num = i + 1
-                
+
                 word_count = len(chapter_text.split())
-                
+
                 chapters_data.append({
                     "number": chapter_num,
                     "title": None,
@@ -764,7 +826,7 @@ class PDFParser:
         else:
             # No chapter markers found - treat as single chapter
             self.log("Chapter boundaries", "No chapter markers found - treating as single chapter")
-            
+
             chapters_data = [{
                 "number": 1,
                 "title": None,
@@ -772,16 +834,22 @@ class PDFParser:
                 "text": cleaned_text,
                 "word_count": word_count,
             }]
-        
+
         # Detect code-switching
         other_languages = []
         if self.language_data["fr"] > 50:
             other_languages.append("fr")
-            self.log("Language detection", f"French code-switching detected ({self.language_data['fr']} markers)")
+            self.log(
+                "Language detection",
+                f"French code-switching detected ({self.language_data['fr']} markers)",
+            )
         if self.language_data["en"] > 50:
             other_languages.append("en")
-            self.log("Language detection", f"English code-switching detected ({self.language_data['en']} markers)")
-        
+            self.log(
+                "Language detection",
+                f"English code-switching detected ({self.language_data['en']} markers)",
+            )
+
         # Build output
         output = {
             "title": title,
@@ -800,34 +868,37 @@ class PDFParser:
             },
             "chapters": chapters_data,
         }
-        
+
         return output
-    
+
     def get_preprocessing_report(self) -> str:
         """Generate markdown preprocessing report."""
         report = []
-        report.append(f"# Preprocessing Report")
-        report.append(f"")
+        report.append("# Preprocessing Report")
+        report.append("")
         report.append(f"**File**: {self.filename}")
         report.append(f"**Processed**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report.append(f"")
-        
-        report.append(f"## Edition Identification")
-        report.append(f"")
+        report.append("")
+
+        report.append("## Edition Identification")
+        report.append("")
         report.append(f"- **Title**: {self.metadata.get('title', 'Unknown')}")
         report.append(f"- **Author**: {self.metadata.get('author', 'Unknown')}")
         report.append(f"- **Year**: {self.metadata.get('year', 'Unknown')}")
         report.append(f"- **Source**: {self.filename}")
-        report.append(f"")
-        
-        report.append(f"## Chapter Boundaries")
-        report.append(f"")
-        report.append(f"Chapters were identified by scanning for chapter markers (Capítulo X, Parte X, etc.).")
-        report.append(f"If no markers found, the entire text is treated as a single chapter.")
-        report.append(f"")
-        
-        report.append(f"## Stripped Elements")
-        report.append(f"")
+        report.append("")
+
+        report.append("## Chapter Boundaries")
+        report.append("")
+        report.append(
+            "Chapters were identified by scanning for chapter markers "
+            "(Capítulo X, Parte X, etc.)."
+        )
+        report.append("If no markers found, the entire text is treated as a single chapter.")
+        report.append("")
+
+        report.append("## Stripped Elements")
+        report.append("")
         if self.stripped_elements:
             by_type = {}
             for elem_type, sample in self.stripped_elements:
@@ -835,68 +906,68 @@ class PDFParser:
                     by_type[elem_type] = []
                 if len(by_type[elem_type]) < 5:
                     by_type[elem_type].append(sample)
-            
+
             for elem_type, examples in by_type.items():
                 report.append(f"### {elem_type}")
                 for ex in examples:
                     report.append(f"- `{ex[:80]}...`" if len(ex) > 80 else f"- `{ex}`")
-                report.append(f"")
+                report.append("")
         else:
-            report.append(f"No editorial elements stripped.")
-            report.append(f"")
-        
-        report.append(f"## Preserved Elements")
-        report.append(f"")
+            report.append("No editorial elements stripped.")
+            report.append("")
+
+        report.append("## Preserved Elements")
+        report.append("")
         if self.preserved_elements:
             for elem_type, sample in self.preserved_elements[:10]:
                 report.append(f"- **{elem_type}**: `{sample[:80]}`")
         else:
-            report.append(f"Standard authorial content preserved.")
-        report.append(f"")
-        
-        report.append(f"## Language Detection")
-        report.append(f"")
+            report.append("Standard authorial content preserved.")
+        report.append("")
+
+        report.append("## Language Detection")
+        report.append("")
         report.append(f"- **Spanish (baseline)**: {self.language_data['es']} markers")
         report.append(f"- **French**: {self.language_data['fr']} markers")
         report.append(f"- **English**: {self.language_data['en']} markers")
         if self.language_data["fr"] > 50 or self.language_data["en"] > 50:
-            report.append(f"")
-            report.append(f"**Code-switching detected**")
-        report.append(f"")
-        
-        report.append(f"## Encoding Issues")
-        report.append(f"")
+            report.append("")
+            report.append("**Code-switching detected**")
+        report.append("")
+
+        report.append("## Encoding Issues")
+        report.append("")
         if self.encoding_issues:
             for issue in self.encoding_issues[:5]:
                 report.append(f"- {issue}")
         else:
-            report.append(f"No encoding issues detected.")
-        report.append(f"")
-        
-        report.append(f"## Numbering Irregularities")
-        report.append(f"")
+            report.append("No encoding issues detected.")
+        report.append("")
+
+        report.append("## Numbering Irregularities")
+        report.append("")
         if self.numbering_irregularities:
             for irreg in self.numbering_irregularities:
                 report.append(f"- {irreg}")
         else:
-            report.append(f"No numbering irregularities detected.")
-        report.append(f"")
-        
-        report.append(f"## Ambiguous Cases")
-        report.append(f"")
+            report.append("No numbering irregularities detected.")
+        report.append("")
+
+        report.append("## Ambiguous Cases")
+        report.append("")
         if self.ambiguous_cases:
             for case in self.ambiguous_cases:
                 report.append(f"- {case}")
         else:
-            report.append(f"No ambiguous cases.")
-        report.append(f"")
-        
-        report.append(f"## Detailed Preprocessing Log")
-        report.append(f"")
+            report.append("No ambiguous cases.")
+        report.append("")
+
+        report.append("## Detailed Preprocessing Log")
+        report.append("")
         for entry in self.preprocessing_log:
             report.append(f"- **{entry['section']}**: {entry['message']}")
-        report.append(f"")
-        
+        report.append("")
+
         return '\n'.join(report)
 
 
@@ -977,7 +1048,7 @@ def main():
             parser = EPUBParser(file_path)
         else:
             parser = PDFParser(file_path)
-        
+
         output = parser.parse()
 
         if output:
@@ -1001,7 +1072,10 @@ def main():
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(parser.get_preprocessing_report())
 
-            print(f"  ✓ JSON: {json_path.name} ({output['total_words']:,} words, {output['total_chapters']} chapters)")
+            print(
+                f"  ✓ JSON: {json_path.name} ({output['total_words']:,} words, "
+                f"{output['total_chapters']} chapters)"
+            )
             print(f"  ✓ Log:  {md_path.name}")
 
             parsed_works.append({
@@ -1013,32 +1087,35 @@ def main():
                 "words": output["total_words"],
             })
         else:
-            print(f"  ✗ Failed to parse")
+            print("  ✗ Failed to parse")
 
         print()
-    
+
     # Generate INDEX.md
     print("Generating INDEX.md...")
     index_path = CORPUS_DIR / "INDEX.md"
-    
+
     with open(index_path, 'w', encoding='utf-8') as f:
         f.write("# Corpus Index\n\n")
         f.write(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write(f"**Total works**: {len(parsed_works)}\n\n")
-        
+
         f.write("| Author | Title | Year | Chapters | Words | File |\n")
         f.write("|--------|-------|------|----------|-------|------|\n")
-        
+
         for work in sorted(parsed_works, key=lambda x: (x["author"], x["year"])):
-            f.write(f"| {work['author']} | {work['title']} | {work['year']} | {work['chapters']} | {work['words']:,} | `{work['filename']}` |\n")
-        
+            f.write(
+                f"| {work['author']} | {work['title']} | {work['year']} | "
+                f"{work['chapters']} | {work['words']:,} | `{work['filename']}` |\n"
+            )
+
         f.write("\n\n## Notes\n\n")
         f.write("- All texts are in original Spanish\n")
         f.write("- Editorial apparatus stripped (TOC, copyright, page numbers, running headers)\n")
         f.write("- Authorial content preserved (epigraphs, dedications, story titles)\n")
         f.write("- See individual preprocessing logs for detailed documentation\n")
-    
-    print(f"  ✓ INDEX.md created")
+
+    print("  ✓ INDEX.md created")
     print()
     print("=" * 70)
     print(f"Parsed {len(parsed_works)} works successfully")

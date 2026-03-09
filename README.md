@@ -116,7 +116,8 @@ docker compose run --rm rayuela python scripts/prepare_ghpages.py
 ## Quality Gates
 
 - GitHub Actions enforces four checks on pull requests: pre-commit, type checking, tests with an 85% coverage threshold, and docstring coverage with an 85% threshold.
-- The CI-safe quality scope currently covers [`src/parsing.py`](src/parsing.py), [`src/project_config.py`](src/project_config.py), [`scripts/md_to_html.py`](scripts/md_to_html.py), and [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py).
+- The CI-safe quality scope currently covers [`src/parsing.py`](src/parsing.py), [`src/project_config.py`](src/project_config.py), [`src/reconstruction_contract.py`](src/reconstruction_contract.py), [`scripts/md_to_html.py`](scripts/md_to_html.py), and [`scripts/prepare_ghpages.py`](scripts/prepare_ghpages.py).
+- Part 3 reconstruction coverage now also includes [`src/reconstruction_audit.py`](src/reconstruction_audit.py), [`src/reconstruction_metrics.py`](src/reconstruction_metrics.py), [`src/reconstruction_dataset.py`](src/reconstruction_dataset.py), and [`src/reconstruction_baselines.py`](src/reconstruction_baselines.py).
 - Local setup:
 
 ```bash
@@ -125,10 +126,141 @@ python3 -m pre_commit install
 python3 -m pre_commit run --all-files
 python3 -m mypy
 python3 -m pytest
-python3 -m interrogate src/parsing.py src/project_config.py scripts/md_to_html.py scripts/prepare_ghpages.py
+python3 -m interrogate src/parsing.py src/project_config.py src/reconstruction_contract.py scripts/md_to_html.py scripts/prepare_ghpages.py
 ```
 
 - The source-controlled GitHub ruleset definition lives at [`.github/rulesets/main-quality-gate.json`](.github/rulesets/main-quality-gate.json).
+
+## Reconstruction Contract
+
+Part 3 reconstruction runs are rooted under [`outputs/reconstruction/`](outputs/reconstruction/). Phase 0 establishes an immutable run policy:
+
+- each run writes its manifest to `outputs/reconstruction/runs/<run_id>/manifest.json`
+- each manifest is mirrored to `outputs/reconstruction/manifests/<run_id>.json`
+- failed runs are retained in place and their run IDs are never reused
+- all manifest paths are stored project-relative so the run can be replayed on another checkout
+
+The required manifest fields are:
+
+- `schema_version`
+- `run_id`
+- `phase`
+- `status`
+- `created_at`
+- `updated_at`
+- `git_sha`
+- `model_id`
+- `prompt_template_id`
+- `seed`
+- `config_hash`
+- `corpus_manifest`
+- `split_manifest`
+- `paths`
+- `config_payload`
+- `error_message`
+
+Phase 0 dry run:
+
+```bash
+python3 src/reconstruction_contract.py --run-id phase0-dry-run --phase phase-0-quality-envelope
+```
+
+## Reconstruction Audit
+
+Phase 1 adds [`src/reconstruction_audit.py`](src/reconstruction_audit.py) to verify that the cleaned comparison corpus and its derived outputs remain operationally decoupled from stale or orphaned artifacts.
+
+Targeted Phase 1 verification:
+
+```bash
+python3 -m pytest tests/test_reconstruction_audit.py -q
+python3 src/reconstruction_audit.py
+```
+
+Primary outputs:
+
+- `outputs/corpus/corpus_metadata.json`: work- and author-level segment counts from the cleaned corpus
+- `outputs/reconstruction/analysis/corpus_sync_audit.json`: machine-readable synchronization report
+
+## Reconstruction Metrics
+
+Phase 2 adds [`src/reconstruction_metrics.py`](src/reconstruction_metrics.py) to lock the measurement contract before any rewrite generation starts.
+
+The module provides:
+
+- typed stylometric and semantic baseline reports under `outputs/reconstruction/baselines/`
+- deterministic rewrite scoring against source semantics and target stylistic envelopes
+- identity, copy-source, and random-target control diagnostics
+
+Targeted Phase 2 verification:
+
+```bash
+python3 -m pytest tests/test_reconstruction_metrics.py -q
+python3 src/reconstruction_metrics.py
+```
+
+The CLI intentionally refuses to lock live baselines if the Phase 1 corpus outputs are stale or
+incomplete.
+
+Primary outputs:
+
+- `outputs/reconstruction/baselines/stylometric_baseline.json`
+- `outputs/reconstruction/baselines/semantic_baseline.json`
+- `outputs/reconstruction/baselines/control_diagnostics.json`
+
+## Reconstruction Dataset
+
+Phase 3 adds [`src/reconstruction_dataset.py`](src/reconstruction_dataset.py) to lock the
+pilot design before prompt baselines or training.
+
+The module provides:
+
+- deterministic 128-256 word source windows with chapter-level reference vectors
+- chapter-aware train/validation/test split manifests with automated leakage checks
+- target work envelopes with explicit train-split provenance
+- serialized success criteria for the locked pilot under operational decoupling language
+
+Targeted Phase 3 verification:
+
+```bash
+python3 -m pytest tests/test_reconstruction_dataset.py -q
+python3 src/reconstruction_dataset.py
+```
+
+Primary outputs:
+
+- `outputs/reconstruction/pilots/source_windows.json`
+- `outputs/reconstruction/pilots/target_envelopes.json`
+- `outputs/reconstruction/pilots/split_manifest.json`
+- `outputs/reconstruction/pilots/success_criteria.json`
+
+## Reconstruction Baselines
+
+Phase 4 adds [`src/reconstruction_baselines.py`](src/reconstruction_baselines.py) to
+establish a prompt-only baseline before any fine-tuning.
+
+The module provides:
+
+- versioned identity, paraphrase, style-shift, and revise prompt templates
+- traceable generate-score-revise histories with raw responses and per-iteration scores
+- immutable Phase 4 run manifests under `outputs/reconstruction/runs/`
+- baseline case, summary, and markdown report artifacts for the locked pilot
+
+Targeted Phase 4 verification:
+
+```bash
+python3 -m pytest tests/test_reconstruction_baselines.py -q
+python3 src/reconstruction_baselines.py --run-id phase4-dry-run --dry-run --max-cases 2
+```
+
+Primary outputs:
+
+- `outputs/reconstruction/runs/<run_id>/prompt_baseline_cases.json`
+- `outputs/reconstruction/runs/<run_id>/prompt_baseline_summary.json`
+- `outputs/reconstruction/runs/<run_id>/prompt_baseline_report.md`
+
+The live prompt-control path expects the local Qwen vLLM service. If the host is
+currently serving another model (for example the Nemotron replication endpoint),
+use `--dry-run` to validate the Phase 4 contract without broadening the claim.
 
 ## Corpus Extension
 

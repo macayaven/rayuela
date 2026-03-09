@@ -15,9 +15,9 @@ Output: outputs/embeddings/chapter_embeddings.npy
 """
 
 import json
-import numpy as np
 from pathlib import Path
 
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
 # ---------------------------------------------------------------------------
@@ -45,7 +45,7 @@ EMBED_INSTRUCTION = (
 
 def load_chapters(data_path: Path) -> list[dict]:
     """Load chapter data from rayuela_raw.json."""
-    with open(data_path, "r", encoding="utf-8") as f:
+    with open(data_path, encoding="utf-8") as f:
         data = json.load(f)
     return data["chapters"]
 

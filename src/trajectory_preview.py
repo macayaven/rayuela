@@ -11,8 +11,9 @@ Usage (inside Docker container):
 """
 
 import json
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EMB_PATH = PROJECT_ROOT / "outputs" / "embeddings" / "chapter_embeddings.npy"
@@ -42,7 +43,7 @@ def consecutive_similarities(embeddings: np.ndarray, path: list[int]) -> np.ndar
 
 def main():
     embeddings = np.load(EMB_PATH)
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
+    with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
     linear_path = data["reading_paths"]["linear"]       # Ch. 1-56
@@ -136,7 +137,7 @@ def main():
         sim_loop = float(np.dot(embeddings[130], embeddings[57]))
         print()
         print(f"  The infinite loop: Ch.131 ↔ Ch.58  sim={sim_loop:.4f}")
-        print(f"  (The Tablero ends by bouncing between these two chapters forever)")
+        print("  (The Tablero ends by bouncing between these two chapters forever)")
         if sim_loop > hopscotch_sims.mean():
             print("  → These chapters are MORE similar than the average hop — a tight loop.")
         else:
