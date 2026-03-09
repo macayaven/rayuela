@@ -153,6 +153,37 @@ def test_prompt_generation_returns_traceable_output() -> None:
     assert result.iterations[0].score_history["weighted_objective"] > 0.0
 
 
+def test_load_target_envelopes_restores_tuple_provenance(tmp_path: Path) -> None:
+    path = tmp_path / "target_envelopes.json"
+    payload = {
+        "target_envelopes": [
+            {
+                "envelope_id": "target:1",
+                "work_id": "target_work",
+                "author": "Target Author",
+                "title": "Target Title",
+                "aggregation_rule": "mean",
+                "provenance_window_ids": ["target:window:1", "target:window:2"],
+                "provenance_segment_ids": ["target_work:2", "target_work:3"],
+                "stylometric_target": {"sent_len_mean": 3.0, "mattr": 3.0},
+                "semantic_reference": {
+                    "existential_questioning": 2.0,
+                    "metafiction": 2.0,
+                },
+            }
+        ]
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = reconstruction_baselines.load_target_envelopes(path)
+
+    assert len(loaded) == 1
+    assert loaded[0].provenance_window_ids == ("target:window:1", "target:window:2")
+    assert loaded[0].provenance_segment_ids == ("target_work:2", "target_work:3")
+    assert isinstance(loaded[0].provenance_window_ids, tuple)
+    assert isinstance(loaded[0].provenance_segment_ids, tuple)
+
+
 def test_iteration_history_is_saved(tmp_path: Path) -> None:
     result = reconstruction_baselines.BaselineCaseResult(
         case=_baseline_case(),

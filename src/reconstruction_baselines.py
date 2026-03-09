@@ -820,10 +820,18 @@ def load_source_windows(path: Path = DEFAULT_SOURCE_WINDOWS_PATH) -> list[Window
     return [WindowRecord(**record) for record in payload["source_windows"]]
 
 
+def _load_target_envelope(record: dict[str, Any]) -> TargetEnvelope:
+    """Load one target envelope while restoring tuple-typed provenance fields."""
+    normalized = dict(record)
+    normalized["provenance_window_ids"] = tuple(normalized["provenance_window_ids"])
+    normalized["provenance_segment_ids"] = tuple(normalized["provenance_segment_ids"])
+    return TargetEnvelope(**normalized)
+
+
 def load_target_envelopes(path: Path = DEFAULT_TARGET_ENVELOPES_PATH) -> list[TargetEnvelope]:
     """Load Phase 3 target envelopes from disk."""
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return [TargetEnvelope(**record) for record in payload["target_envelopes"]]
+    return [_load_target_envelope(record) for record in payload["target_envelopes"]]
 
 
 def load_success_criteria(path: Path = DEFAULT_SUCCESS_CRITERIA_PATH) -> SuccessCriteria:
