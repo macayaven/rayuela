@@ -258,6 +258,7 @@ def extract_windows(
     corpus_dir: Path = CORPUS_DIR,
     corpus_output_dir: Path = CORPUS_OUTPUT_DIR,
     corpus_works: dict[str, tuple[str, str]] | None = None,
+    allow_discovery: bool = False,
     min_words: int = 128,
     max_words: int = 256,
 ) -> list[WindowRecord]:
@@ -266,24 +267,25 @@ def extract_windows(
         raise ValueError("word bounds must satisfy 0 < min_words <= max_words")
 
     if corpus_works is None:
-        available_works: dict[str, tuple[str, str]] = {}
-        for work_id, (author, title) in CORPUS_WORKS.items():
-            if (corpus_dir / f"{work_id}_clean.json").exists():
-                available_works[work_id] = (author, title)
-        discovered_works: dict[str, tuple[str, str]] = {}
-        for path in sorted(corpus_dir.glob("*_clean.json")):
-            work_id = path.stem.replace("_clean", "")
-            if work_id in available_works:
-                continue
-            payload = _load_json(path)
-            discovered_works[work_id] = (
-                str(payload.get("author", "Unknown")),
-                str(payload.get("title", work_id)),
-            )
-        if available_works or discovered_works:
-            resolved_corpus_works = {**available_works, **discovered_works}
+        if allow_discovery:
+            resolved_corpus_works = {
+                path.stem.replace("_clean", ""): ("Unknown", path.stem.replace("_clean", ""))
+                for path in sorted(corpus_dir.glob("*_clean.json"))
+            }
         else:
-            resolved_corpus_works = {}
+            resolved_corpus_works = CORPUS_WORKS
+            missing_clean_files: list[str] = []
+            for work_id in resolved_corpus_works:
+                clean_path = corpus_dir / f"{work_id}_clean.json"
+                if not clean_path.exists():
+                    missing_clean_files.append(f"{work_id} ({clean_path})")
+            if missing_clean_files:
+                missing_str = ", ".join(missing_clean_files)
+                raise ValueError(
+                    f"missing canonical clean corpus files for: {missing_str}. "
+                    "Ensure CORPUS_WORKS is in sync with the contents of the corpus directory "
+                    "or pass an explicit corpus_works mapping / enable discovery explicitly."
+                )
     else:
         resolved_corpus_works = corpus_works
     stylometric_lookup = _segment_vector_lookup(
@@ -303,8 +305,10 @@ def extract_windows(
 
     windows: list[WindowRecord] = []
     for work_id in sorted(resolved_corpus_works):
-        author, title = resolved_corpus_works[work_id]
         clean_payload = _load_json(corpus_dir / f"{work_id}_clean.json")
+        fallback_author, fallback_title = resolved_corpus_works[work_id]
+        author = str(clean_payload.get("author", fallback_author))
+        title = str(clean_payload.get("title", fallback_title))
         for chapter in clean_payload["chapters"]:
             chapter_number = int(chapter["number"])
             text = str(chapter["text"])

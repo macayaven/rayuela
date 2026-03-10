@@ -163,7 +163,9 @@ def _build_fixture_dataset(tmp_path: Path) -> tuple[Path, Path, dict[str, tuple[
     return corpus_dir, corpus_output_dir, corpus_works
 
 
-def _build_phase5_artifacts(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
+def _build_phase5_artifacts(
+    tmp_path: Path,
+) -> tuple[Path, Path, dict[str, tuple[str, str]], Path, Path]:
     corpus_dir, corpus_output_dir, corpus_works = _build_fixture_dataset(tmp_path)
     pilots_dir = tmp_path / "outputs" / "reconstruction" / "pilots"
     windows = reconstruction_dataset.extract_windows(
@@ -218,11 +220,11 @@ def _build_phase5_artifacts(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         json.dumps({"works": list(corpus_works)}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    return corpus_dir, corpus_output_dir, split_manifest_path, target_envelopes_path
+    return corpus_dir, corpus_output_dir, corpus_works, split_manifest_path, target_envelopes_path
 
 
 def test_model_config_is_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    corpus_dir, corpus_output_dir, split_manifest_path, target_envelopes_path = (
+    corpus_dir, corpus_output_dir, _, split_manifest_path, target_envelopes_path = (
         _build_phase5_artifacts(tmp_path)
     )
     monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
@@ -240,6 +242,7 @@ def test_model_config_is_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPa
             str(split_manifest_path),
             "--target-envelopes-path",
             str(target_envelopes_path),
+            "--allow-corpus-discovery",
         ]
     )
 
@@ -256,7 +259,7 @@ def test_model_config_is_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 
 def test_train_val_test_splits_match_manifest(tmp_path: Path) -> None:
-    corpus_dir, corpus_output_dir, split_manifest_path, target_envelopes_path = (
+    corpus_dir, corpus_output_dir, corpus_works, split_manifest_path, target_envelopes_path = (
         _build_phase5_artifacts(tmp_path)
     )
     split_manifest = reconstruction_train.load_split_manifest(split_manifest_path)
@@ -264,6 +267,7 @@ def test_train_val_test_splits_match_manifest(tmp_path: Path) -> None:
     windows = reconstruction_dataset.extract_windows(
         corpus_dir=corpus_dir,
         corpus_output_dir=corpus_output_dir,
+        corpus_works=corpus_works,
         min_words=split_manifest.min_words,
         max_words=split_manifest.max_words,
     )
@@ -282,7 +286,7 @@ def test_checkpoint_metadata_is_complete(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    corpus_dir, corpus_output_dir, split_manifest_path, target_envelopes_path = (
+    corpus_dir, corpus_output_dir, _, split_manifest_path, target_envelopes_path = (
         _build_phase5_artifacts(tmp_path)
     )
     monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
@@ -300,6 +304,7 @@ def test_checkpoint_metadata_is_complete(
             str(split_manifest_path),
             "--target-envelopes-path",
             str(target_envelopes_path),
+            "--allow-corpus-discovery",
         ]
     )
 
@@ -328,7 +333,7 @@ def test_inference_pipeline_loads_saved_adapter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    corpus_dir, corpus_output_dir, split_manifest_path, target_envelopes_path = (
+    corpus_dir, corpus_output_dir, _, split_manifest_path, target_envelopes_path = (
         _build_phase5_artifacts(tmp_path)
     )
     monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
@@ -346,6 +351,7 @@ def test_inference_pipeline_loads_saved_adapter(
             str(split_manifest_path),
             "--target-envelopes-path",
             str(target_envelopes_path),
+            "--allow-corpus-discovery",
         ]
     )
 
@@ -419,3 +425,65 @@ def test_optional_wandb_logging_records_run_metadata(monkeypatch: pytest.MonkeyP
     }
     assert calls["log"] == {"train_loss": 0.42}
     assert calls["finished"] is True
+
+
+def test_extract_windows_requires_opt_in_for_noncanonical_corpus(tmp_path: Path) -> None:
+    corpus_dir, corpus_output_dir, _, _, _ = _build_phase5_artifacts(tmp_path)
+
+    with pytest.raises(ValueError, match="missing canonical clean corpus files"):
+        reconstruction_dataset.extract_windows(
+            corpus_dir=corpus_dir,
+            corpus_output_dir=corpus_output_dir,
+            min_words=4,
+            max_words=5,
+        )
+
+    windows = reconstruction_dataset.extract_windows(
+        corpus_dir=corpus_dir,
+        corpus_output_dir=corpus_output_dir,
+        min_words=4,
+        max_words=5,
+        allow_discovery=True,
+    )
+
+    assert len(windows) == 12
+    assert {window.work_id for window in windows} == {"alpha", "beta", "gamma"}
+
+
+def test_failed_setup_still_finalizes_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, _, split_manifest_path, target_envelopes_path = _build_phase5_artifacts(tmp_path)
+    monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(reconstruction_train, "detect_git_sha", lambda project_root: "feedface")
+    monkeypatch.setattr(
+        reconstruction_train,
+        "load_split_manifest",
+        lambda path: (_ for _ in ()).throw(RuntimeError("split load failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="split load failed"):
+        reconstruction_train.main(
+            [
+                "--run-id",
+                "phase5-failed-setup",
+                "--split-manifest-path",
+                str(split_manifest_path),
+                "--target-envelopes-path",
+                str(target_envelopes_path),
+            ]
+        )
+
+    manifest_path = (
+        tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-failed-setup" / "manifest.json"
+    )
+    indexed_manifest_path = (
+        tmp_path / "outputs" / "reconstruction" / "manifests" / "phase5-failed-setup.json"
+    )
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    indexed_payload = json.loads(indexed_manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest_payload["status"] == "failed"
+    assert manifest_payload["error_message"] == "split load failed"
+    assert indexed_payload["status"] == "failed"

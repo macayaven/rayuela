@@ -272,6 +272,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--split-manifest-path", type=Path, required=True)
     parser.add_argument("--target-envelopes-path", type=Path, required=True)
+    parser.add_argument(
+        "--allow-corpus-discovery",
+        action="store_true",
+        help="Allow non-canonical corpus discovery when using ad hoc local corpora.",
+    )
     parser.add_argument("--wandb-project", default=None)
     parser.add_argument("--wandb-entity", default=None)
     parser.add_argument("--wandb-mode", default="offline")
@@ -285,25 +290,6 @@ def main(argv: list[str] | None = None) -> int:
 
     seed_everything(args.seed)
     run_dir = prepare_run_directory(args.run_id, paths=paths)
-
-    split_manifest = load_split_manifest(args.split_manifest_path)
-    target_envelopes = load_target_envelopes(args.target_envelopes_path)
-
-    windows = extract_windows(
-        corpus_dir=args.corpus_dir,
-        corpus_output_dir=args.corpus_output_dir,
-        min_words=split_manifest.min_words,
-        max_words=split_manifest.max_words,
-    )
-
-    examples = build_training_examples(
-        windows,
-        split_manifest,
-        target_envelopes,
-        dataset_mode=args.dataset_mode,
-    )
-    split_counts = count_examples_by_split(examples)
-
     training_config = TrainingConfig(
         run_id=args.run_id,
         model_id=args.model_id,
@@ -314,41 +300,11 @@ def main(argv: list[str] | None = None) -> int:
         wandb_mode=args.wandb_mode,
     )
     git_sha = detect_git_sha(paths.project_root)
-
     config_path = run_dir / "training_config.json"
     tokenizer_config_path = run_dir / "tokenizer_config.json"
     metrics_path = run_dir / "training_metrics.json"
-    adapter_dir = run_dir / "adapter"
-    adapter_path = _write_placeholder_adapter(adapter_dir)
-
-    _write_json(config_path, training_config.to_dict())
-    _write_json(tokenizer_config_path, {"model_id": training_config.model_id})
-    _write_json(
-        metrics_path,
-        {
-            "run_id": args.run_id,
-            "status": "scaffold_only",
-            "dataset_mode": args.dataset_mode,
-            "split_counts": split_counts,
-            "tolerance_config": ToleranceConfig().to_dict(),
-        },
-    )
-
-    checkpoint_metadata = CheckpointMetadata(
-        run_id=args.run_id,
-        git_sha=git_sha,
-        phase="phase-5-training-scaffold",
-        model_id=args.model_id,
-        adapter_type="qlora",
-        adapter_artifact_path=to_project_relative(adapter_path, paths.project_root),
-        config_path=to_project_relative(config_path, paths.project_root),
-        tokenizer_config_path=to_project_relative(tokenizer_config_path, paths.project_root),
-        metrics_path=to_project_relative(metrics_path, paths.project_root),
-        split_counts=split_counts,
-    )
     checkpoint_path = run_dir / "checkpoint_metadata.json"
-    _write_json(checkpoint_path, checkpoint_metadata.to_dict())
-
+    adapter_dir = run_dir / "adapter"
     run_manifest = build_run_manifest(
         run_id=args.run_id,
         phase="phase-5-training-scaffold",
@@ -372,6 +328,53 @@ def main(argv: list[str] | None = None) -> int:
     run_status = RunStatus.COMPLETED
     error_message: str | None = None
     try:
+        split_manifest = load_split_manifest(args.split_manifest_path)
+        target_envelopes = load_target_envelopes(args.target_envelopes_path)
+
+        windows = extract_windows(
+            corpus_dir=args.corpus_dir,
+            corpus_output_dir=args.corpus_output_dir,
+            allow_discovery=args.allow_corpus_discovery,
+            min_words=split_manifest.min_words,
+            max_words=split_manifest.max_words,
+        )
+
+        examples = build_training_examples(
+            windows,
+            split_manifest,
+            target_envelopes,
+            dataset_mode=args.dataset_mode,
+        )
+        split_counts = count_examples_by_split(examples)
+        adapter_path = _write_placeholder_adapter(adapter_dir)
+
+        _write_json(config_path, training_config.to_dict())
+        _write_json(tokenizer_config_path, {"model_id": training_config.model_id})
+        _write_json(
+            metrics_path,
+            {
+                "run_id": args.run_id,
+                "status": "scaffold_only",
+                "dataset_mode": args.dataset_mode,
+                "split_counts": split_counts,
+                "tolerance_config": ToleranceConfig().to_dict(),
+            },
+        )
+
+        checkpoint_metadata = CheckpointMetadata(
+            run_id=args.run_id,
+            git_sha=git_sha,
+            phase="phase-5-training-scaffold",
+            model_id=args.model_id,
+            adapter_type="qlora",
+            adapter_artifact_path=to_project_relative(adapter_path, paths.project_root),
+            config_path=to_project_relative(config_path, paths.project_root),
+            tokenizer_config_path=to_project_relative(tokenizer_config_path, paths.project_root),
+            metrics_path=to_project_relative(metrics_path, paths.project_root),
+            split_counts=split_counts,
+        )
+        _write_json(checkpoint_path, checkpoint_metadata.to_dict())
+
         logger = build_experiment_logger(
             config=training_config,
             git_sha=git_sha,
