@@ -67,3 +67,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **What surprised me:**
 - The sections not clustering was unexpected — I assumed the Paris/Buenos Aires divide would show in texture
 - The hopscotch path being smoother than random was also unexpected — I assumed it was purely semantic design
+
+### 2026-03-10 — Phase 5 Training Scaffold Decisions
+
+**Decision**: Phase 5 starts with a scaffold that writes the full training envelope (config, checkpoint metadata, adapter placeholder, tokenizer config) before any real fine-tuning. The default `identity_smoke` dataset mode keeps the run safe and deterministic while we validate the infrastructure.
+
+**Experiment logging**: We will use Weights & Biases for experiment metadata and metrics when running real training. It is optional and defaults to offline mode; runs should only upload when we deliberately enable it.
+
+**Why this matters**: The scaffold forces every run to be reproducible and auditable before we spend GPU time, which keeps the operational decoupling claims grounded in saved artifacts instead of ad hoc training output.

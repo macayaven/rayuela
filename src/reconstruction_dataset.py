@@ -258,6 +258,7 @@ def extract_windows(
     corpus_dir: Path = CORPUS_DIR,
     corpus_output_dir: Path = CORPUS_OUTPUT_DIR,
     corpus_works: dict[str, tuple[str, str]] | None = None,
+    allow_discovery: bool = False,
     min_words: int = 128,
     max_words: int = 256,
 ) -> list[WindowRecord]:
@@ -265,7 +266,28 @@ def extract_windows(
     if min_words <= 0 or max_words < min_words:
         raise ValueError("word bounds must satisfy 0 < min_words <= max_words")
 
-    resolved_corpus_works = CORPUS_WORKS if corpus_works is None else corpus_works
+    if corpus_works is None:
+        if allow_discovery:
+            resolved_corpus_works = {
+                path.stem.replace("_clean", ""): ("Unknown", path.stem.replace("_clean", ""))
+                for path in sorted(corpus_dir.glob("*_clean.json"))
+            }
+        else:
+            resolved_corpus_works = CORPUS_WORKS
+            missing_clean_files: list[str] = []
+            for work_id in resolved_corpus_works:
+                clean_path = corpus_dir / f"{work_id}_clean.json"
+                if not clean_path.exists():
+                    missing_clean_files.append(f"{work_id} ({clean_path})")
+            if missing_clean_files:
+                missing_str = ", ".join(missing_clean_files)
+                raise ValueError(
+                    f"missing canonical clean corpus files for: {missing_str}. "
+                    "Ensure CORPUS_WORKS is in sync with the contents of the corpus directory "
+                    "or pass an explicit corpus_works mapping / enable discovery explicitly."
+                )
+    else:
+        resolved_corpus_works = corpus_works
     stylometric_lookup = _segment_vector_lookup(
         load_stylometric_measurements(
             corpus_dir=corpus_dir,
@@ -283,8 +305,10 @@ def extract_windows(
 
     windows: list[WindowRecord] = []
     for work_id in sorted(resolved_corpus_works):
-        author, title = resolved_corpus_works[work_id]
         clean_payload = _load_json(corpus_dir / f"{work_id}_clean.json")
+        fallback_author, fallback_title = resolved_corpus_works[work_id]
+        author = str(clean_payload.get("author", fallback_author))
+        title = str(clean_payload.get("title", fallback_title))
         for chapter in clean_payload["chapters"]:
             chapter_number = int(chapter["number"])
             text = str(chapter["text"])
@@ -305,10 +329,7 @@ def extract_windows(
                 start_char = spans[word_start][0]
                 end_char = spans[word_end - 1][1]
                 window_text = text[start_char:end_char]
-                window_id = (
-                    f"{work_id}:ch{chapter_number}:w{window_index}:"
-                    f"{word_start}-{word_end}"
-                )
+                window_id = f"{work_id}:ch{chapter_number}:w{window_index}:{word_start}-{word_end}"
                 windows.append(
                     WindowRecord(
                         window_id=window_id,
@@ -332,6 +353,7 @@ def extract_windows(
     if not windows:
         raise ValueError("no eligible reconstruction windows were extracted")
     return windows
+
 
 def _window_token_set(text: str) -> frozenset[str]:
     """Return a normalized unique token set for near-duplicate checks."""
@@ -362,11 +384,7 @@ def _audit_leakage(
             issues.append(f"{segment_id}: chapter assigned to multiple splits {sorted(splits)}")
 
     token_sets = {window.window_id: _window_token_set(window.text) for window in windows}
-    token_frequency = Counter(
-        token
-        for token_set in token_sets.values()
-        for token in token_set
-    )
+    token_frequency = Counter(token for token_set in token_sets.values() for token in token_set)
     ordered_tokens = {
         window.window_id: tuple(
             sorted(
@@ -521,8 +539,7 @@ def build_target_envelopes(
             segment_representatives.setdefault(window.segment_id, window)
 
         reference_windows = [
-            segment_representatives[segment_id]
-            for segment_id in sorted(segment_representatives)
+            segment_representatives[segment_id] for segment_id in sorted(segment_representatives)
         ]
         stylometric_names = list(reference_windows[0].stylometric_reference)
         semantic_names = list(reference_windows[0].semantic_reference)

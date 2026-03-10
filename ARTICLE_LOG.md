@@ -324,3 +324,19 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 - full `mypy` passed
 
 **For Part 3**: The experiment now has the full prompt-baseline control harness before adapter training. Once the Qwen service is active again, the same locked pilot, scoring contract, and run-manifest envelope can be used for the real no-training baseline without redefining the task.
+
+### 2026-03-10 — Part 3 Phase 5: Training Scaffold and Adapter Envelope
+
+**Phase**: Part 3 — Phase 5 (Fine-Tuned Rewrite Model on DGX Spark)
+
+**What happened**: Implemented `src/reconstruction_train.py`, `src/reconstruction_infer.py`, and `tests/test_reconstruction_training.py` test-first to build the Phase 5 training scaffold. The scaffold writes a reproducible training config, placeholder adapter artifact, tokenizer config, and checkpoint metadata under an immutable run directory, then verifies adapter reload through the inference loader. Optional Weights & Biases logging is supported but remains opt-in and offline by default.
+
+**Key decision**: The Phase 5 entry point is a scaffold, not a false training run. It prepares a deterministic training envelope and run manifest, uses an `identity_smoke` dataset mode for safe validation, and defers real QLoRA runs until the locked pilot is explicitly triggered. W&B is treated as an optional observability layer rather than a hard dependency.
+
+**Verification**:
+- `pytest tests/test_reconstruction_training.py -q --no-cov` passed
+- full `pytest -q` passed
+- full `ruff check src tests scripts` passed
+- full `mypy` passed
+
+**For Part 3**: Phase 5 now has a reproducible training scaffold that enforces the same run contract as Phases 0–4, enabling a disciplined first fine-tune without reworking the metadata and artifact envelope.
