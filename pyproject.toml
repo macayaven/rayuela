@@ -13,6 +13,7 @@ testpaths = ["tests"]
 branch = true
 include = [
   "src/parsing.py",
+  "src/reconstruction_analysis.py",
   "src/project_config.py",
   "src/reconstruction_audit.py",
   "src/reconstruction_baselines.py",
@@ -20,6 +21,7 @@ include = [
   "src/reconstruction_dataset.py",
   "src/reconstruction_infer.py",
   "src/reconstruction_metrics.py",
+  "src/reconstruction_scheduler.py",
   "src/reconstruction_train.py",
   "scripts/md_to_html.py",
   "scripts/prepare_ghpages.py",
@@ -52,6 +54,7 @@ indent-style = "space"
 python_version = "3.12"
 files = [
   "src/parsing.py",
+  "src/reconstruction_analysis.py",
   "src/project_config.py",
   "src/reconstruction_audit.py",
   "src/reconstruction_baselines.py",
@@ -59,6 +62,7 @@ files = [
   "src/reconstruction_dataset.py",
   "src/reconstruction_infer.py",
   "src/reconstruction_metrics.py",
+  "src/reconstruction_scheduler.py",
   "src/reconstruction_train.py",
   "scripts/md_to_html.py",
   "scripts/prepare_ghpages.py",

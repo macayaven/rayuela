@@ -263,6 +263,130 @@ The live prompt-control path expects the local Qwen vLLM service. If the host is
 currently serving another model (for example the Nemotron replication endpoint),
 use `--dry-run` to validate the Phase 4 contract without broadening the claim.
 
+## Reconstruction Training
+
+Phase 5 adds [`src/reconstruction_train.py`](src/reconstruction_train.py) and
+[`src/reconstruction_infer.py`](src/reconstruction_infer.py) to prepare the
+training envelope before real adapter fine-tuning.
+
+The modules provide:
+
+- deterministic `identity_smoke` dataset assembly from the locked pilot split
+- immutable run directories with training config, tokenizer config, metrics, and
+  checkpoint metadata
+- placeholder-adapter handling that is explicit in metadata and rejected by
+  inference when a real adapter is not present yet
+
+Targeted Phase 5 verification:
+
+```bash
+python3 -m pytest tests/test_reconstruction_training.py -q
+python3 src/reconstruction_train.py --run-id phase5-smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
+```
+
+Primary outputs:
+
+- `outputs/reconstruction/runs/<run_id>/training_config.json`
+- `outputs/reconstruction/runs/<run_id>/training_metrics.json`
+- `outputs/reconstruction/runs/<run_id>/checkpoint_metadata.json`
+
+## Reconstruction Analysis
+
+Phase 6 adds [`src/reconstruction_analysis.py`](src/reconstruction_analysis.py)
+to turn immutable Phase 4+ run artifacts into synthesis-ready summaries.
+
+The module provides:
+
+- complete cross-run case aggregation from `prompt_baseline_cases.json`
+- explicit failure-mode labeling from the saved scoring contract
+- source-side bias slices by work and author
+- article-ready summary/report artifacts and a close-reading queue with stable
+  `run_id` links
+- optional W&B analysis logging for aggregate counts, failure-mode totals,
+  run-summary tables, close-reading queues, and attached analysis artifacts
+
+Targeted Phase 6 verification:
+
+```bash
+.venv/bin/python -m pytest tests/test_reconstruction_analysis.py -q
+.venv/bin/python src/reconstruction_analysis.py --wandb-project rayuela --wandb-mode offline
+```
+
+Primary outputs:
+
+- `outputs/reconstruction/analysis/reconstruction_analysis_summary.json`
+- `outputs/reconstruction/analysis/reconstruction_analysis_report.md`
+- `outputs/reconstruction/analysis/reconstruction_article_inputs.json`
+
+## Guided Scheduler
+
+[`src/reconstruction_scheduler.py`](src/reconstruction_scheduler.py) adds a
+finite experiment scheduler inspired by the keep/discard discipline of
+Andrej Karpathy's `autoresearch`, but adapted to the reconstruction run contract.
+
+The module provides:
+
+- JSON-defined experiment queues with explicit commands, timeouts, and metric paths
+- append-only scheduler results under `outputs/reconstruction/analysis/schedules/`
+- automatic `keep` / `discard` / `failed` decisions based on a metric key extracted
+  from produced run artifacts
+- schedule summaries that record kept/discarded/failed `run_id`s for direct
+  handoff into Phase 6 analysis
+- optional W&B per-experiment logging for run metadata, scheduler decisions,
+  extracted reconstruction metrics, and attached immutable run/scheduler artifacts
+
+Targeted scheduler verification:
+
+```bash
+.venv/bin/python -m pytest tests/test_reconstruction_scheduler.py -q
+.venv/bin/python src/reconstruction_scheduler.py --plan-path plans/reconstruction_guided_schedule.example.json --wandb-project rayuela --wandb-mode offline
+.venv/bin/python src/reconstruction_analysis.py --schedule-summary-path outputs/reconstruction/analysis/schedules/<schedule_id>/schedule_summary.json --wandb-project rayuela --wandb-mode offline --wandb-group <schedule_id>
+```
+
+W&B logging is operationally decoupled from experiment execution. The scheduler
+logs one run per planned experiment with the explicit keep/discard/failed
+decision, the chosen advancement metric, and attached local artifacts so the
+research loop can compare runs without rereading raw filesystem state. The
+analysis step logs aggregate failure counts, run summaries, and close-reading
+queues so the third article can cite stable synthesis outputs rather than
+hand-maintained notes.
+
+Minimal plan shape:
+
+```json
+{
+  "schedule_id": "guided-20260310a",
+  "experiments": [
+    {
+      "experiment_id": "baseline-a",
+      "run_id": "phase4-live-20260310a",
+      "phase": "phase-4-prompt-baselines",
+      "command": [
+        ".venv/bin/python",
+        "src/reconstruction_baselines.py",
+        "--run-id",
+        "{run_id}"
+      ],
+      "timeout_seconds": 3600,
+      "metric_path_template": "outputs/reconstruction/runs/{run_id}/prompt_baseline_summary.json",
+      "metric_key": "controls.style_shift.mean_weighted_objective",
+      "higher_is_better": true
+    }
+  ]
+}
+```
+
+Primary outputs:
+
+- `outputs/reconstruction/analysis/schedules/<schedule_id>/schedule_results.jsonl`
+- `outputs/reconstruction/analysis/schedules/<schedule_id>/schedule_summary.json`
+
+A ready-to-edit example lives at
+[`plans/reconstruction_guided_schedule.example.json`](plans/reconstruction_guided_schedule.example.json).
+Treat scheduler plan files as trusted executable specifications: the scheduler
+passes the declared command directly to `subprocess.run()` and does not sandbox
+or validate contributor-authored plans.
+
 ## Corpus Extension
 
 The repo is no longer only about `Rayuela`. [`src/corpus_cleanup.py`](src/corpus_cleanup.py), [`src/corpus_stylometrics.py`](src/corpus_stylometrics.py), and [`src/corpus_semantic.py`](src/corpus_semantic.py) extend the same methods to a broader Latin American corpus stored in [`data/corpus/`](data/corpus/).
