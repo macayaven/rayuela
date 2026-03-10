@@ -7,6 +7,7 @@ it with a CDN reference, reducing file sizes from ~4.7 MB to ~100-200 KB.
 """
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -61,14 +62,16 @@ def extract_published_targets(markdown: str, *, base_url: str = PAGES_BASE_URL) 
 
 def validate_published_targets(
     *,
-    article_paths: list[Path] = ARTICLE_SOURCES,
+    article_paths: Sequence[Path] | None = None,
     docs_dir: Path = DOCS_DIR,
-    include_files: list[str] = INCLUDE_FILES,
+    include_files: Sequence[str] | None = None,
     base_url: str = PAGES_BASE_URL,
 ) -> tuple[list[str], list[str]]:
     """Return missing docs targets and missing publish-bundle registrations."""
+    resolved_article_paths = ARTICLE_SOURCES if article_paths is None else article_paths
+    resolved_include_files = INCLUDE_FILES if include_files is None else include_files
     referenced_targets: list[str] = []
-    for article_path in article_paths:
+    for article_path in resolved_article_paths:
         markdown = article_path.read_text(encoding="utf-8")
         for target in extract_published_targets(markdown, base_url=base_url):
             if target not in referenced_targets:
@@ -76,7 +79,7 @@ def validate_published_targets(
 
     missing_docs = [target for target in referenced_targets if not (docs_dir / target).exists()]
     missing_publish_bundle = [
-        target for target in referenced_targets if target not in include_files
+        target for target in referenced_targets if target not in resolved_include_files
     ]
     return missing_docs, missing_publish_bundle
 

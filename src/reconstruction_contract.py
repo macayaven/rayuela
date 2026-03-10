@@ -216,9 +216,16 @@ def _load_torch_module() -> Any | None:
 
 
 def seed_everything(seed: int | SeedBundle, torch_module: Any | None = None) -> SeedBundle:
-    """Seed Python, NumPy, torch, and splitter metadata deterministically."""
+    """
+    Seed Python, NumPy, torch, and splitter metadata deterministically.
+
+    Note that `PYTHONHASHSEED` is read when the interpreter starts. Updating
+    `os.environ` here records the intended seed for child processes and run
+    metadata, but it does not change hash randomization in the current process.
+    """
     bundle = coerce_seed_bundle(seed)
 
+    # Preserve the intended hash seed for subprocesses and persisted run context.
     os.environ["PYTHONHASHSEED"] = str(bundle.python)
     random.seed(bundle.python)
     np.random.seed(bundle.numpy)
