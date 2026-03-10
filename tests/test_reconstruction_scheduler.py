@@ -158,9 +158,7 @@ def test_run_schedule_writes_append_only_results_and_summary(tmp_path: Path) -> 
 
 def test_run_schedule_rejects_reuse_of_existing_schedule_id(tmp_path: Path) -> None:
     project_root = tmp_path
-    metric_path = (
-        project_root / "outputs" / "reconstruction" / "runs" / "phase4-a" / "summary.json"
-    )
+    metric_path = project_root / "outputs" / "reconstruction" / "runs" / "phase4-a" / "summary.json"
     plan = reconstruction_scheduler.SchedulePlan(
         schedule_id="guided-20260310a",
         experiments=(
@@ -254,9 +252,7 @@ def test_run_schedule_optionally_logs_experiments_to_wandb(
     monkeypatch.setattr(reconstruction_scheduler, "_load_wandb_module", lambda: _WandbStub)
 
     project_root = tmp_path
-    kept_metric = (
-        project_root / "outputs" / "reconstruction" / "runs" / "phase4-a" / "summary.json"
-    )
+    kept_metric = project_root / "outputs" / "reconstruction" / "runs" / "phase4-a" / "summary.json"
     discarded_metric = (
         project_root / "outputs" / "reconstruction" / "runs" / "phase4-b" / "summary.json"
     )
