@@ -13,19 +13,26 @@ The script loops, checking v2 progress every 10 minutes, and writes the
 final report when v2 is complete (or after a maximum wait of 8 hours).
 """
 
+import datetime
 import json
 import time
-import datetime
-import numpy as np
-from pathlib import Path
 from itertools import pairwise
 
+import numpy as np
+
 from project_config import (
-    PROJECT_ROOT, TABLERO, LINEAR_ORDER, DIMS_ORDERED,
-    SECTION_COLORS, RNG_SEED, N_PERMS, NUM_CHAPTERS,
+    LINEAR_ORDER,
+    N_PERMS,
+    NUM_CHAPTERS,
+    PROJECT_ROOT,
+    RNG_SEED,
+    TABLERO,
     DistanceMetric,
-    z_score as compute_z_score, z_standardize,
-    z_standardize_scores_dict, get_all_chapters,
+    get_all_chapters,
+    z_standardize_scores_dict,
+)
+from project_config import (
+    z_score as compute_z_score,
 )
 
 REPORT_PATH = PROJECT_ROOT / "outputs" / "audit_report.md"
@@ -66,7 +73,10 @@ def audit_data_integrity() -> str:
         issues.append(f"CRITICAL: rayuela_raw.json has {len(chapters)} chapters, expected 155")
     nums = [ch["number"] for ch in chapters]
     if nums != list(range(1, 156)):
-        issues.append(f"CRITICAL: chapter numbers not sequential 1-155: {sorted(set(range(1,156)) - set(nums))}")
+        missing_numbers = sorted(set(range(1, 156)) - set(nums))
+        issues.append(
+            f"CRITICAL: chapter numbers not sequential 1-155: {missing_numbers}"
+        )
 
     # Check sections
     sec_counts = {}
@@ -127,7 +137,10 @@ def audit_data_integrity() -> str:
     if issues:
         result += "\n".join(f"- {i}" for i in issues) + "\n"
     else:
-        result += "All checks passed. 155 chapters, 1024-dim embeddings, 20-dim narrative DNA, all consistent.\n"
+        result += (
+            "All checks passed. 155 chapters, 1024-dim embeddings, "
+            "20-dim narrative DNA, all consistent.\n"
+        )
     return result
 
 
@@ -141,7 +154,6 @@ def audit_statistics() -> str:
 
     with open(PROJECT_ROOT / "data" / "rayuela_raw.json") as f:
         raw = json.load(f)
-    meta = {ch["number"]: ch for ch in raw["chapters"]}
 
     emb_a = np.load(PROJECT_ROOT / "outputs" / "embeddings" / "chapter_embeddings.npy")
     ch_to_idx = {ch["number"]: i for i, ch in enumerate(raw["chapters"])}
@@ -195,10 +207,22 @@ def audit_statistics() -> str:
         z_hop = compute_z_score(hop_mean, hop_rand_means, DistanceMetric.EUCLIDEAN)
 
         findings.append(f"**Scale {space} ({label})** (positive z = smoother):")
-        findings.append(f"  - Linear: mean_dist={lin_mean:.4f}, z={z_lin:+.2f}σ (null: shuffled Ch.1-56)")
-        findings.append(f"  - Hopscotch: mean_dist={hop_mean:.4f}, z={z_hop:+.2f}σ (null: shuffled all 155)")
-        findings.append(f"  - Linear null: μ={lin_rand_means.mean():.4f}, σ={lin_rand_means.std():.4f}")
-        findings.append(f"  - Hopscotch null: μ={hop_rand_means.mean():.4f}, σ={hop_rand_means.std():.4f}")
+        findings.append(
+            f"  - Linear: mean_dist={lin_mean:.4f}, z={z_lin:+.2f}σ "
+            "(null: shuffled Ch.1-56)"
+        )
+        findings.append(
+            f"  - Hopscotch: mean_dist={hop_mean:.4f}, z={z_hop:+.2f}σ "
+            "(null: shuffled all 155)"
+        )
+        findings.append(
+            f"  - Linear null: μ={lin_rand_means.mean():.4f}, "
+            f"σ={lin_rand_means.std():.4f}"
+        )
+        findings.append(
+            f"  - Hopscotch null: μ={hop_rand_means.mean():.4f}, "
+            f"σ={hop_rand_means.std():.4f}"
+        )
         findings.append(f"  - Linear percentile: {(lin_rand_means > lin_mean).mean()*100:.2f}%")
         findings.append(f"  - Hopscotch percentile: {(hop_rand_means > hop_mean).mean()*100:.1f}%")
         findings.append("")
@@ -211,11 +235,6 @@ def audit_statistics() -> str:
     b_dists = pdist(b_matrix_z, metric=DistanceMetric.EUCLIDEAN.value)
     rho, pval = spearmanr(a_dists, b_dists)
     findings.append(f"**Cross-scale correlation**: Spearman ρ = {rho:.3f} (p = {pval:.2e})")
-
-    # Article claims to verify
-    claims = []
-    # Claim: "linear path is -8.6σ" — check it's close
-    # (Already computed above, z_lin for Scale B should be around -8.6)
 
     result = "## Audit 2: Reproduce Key Statistics\n\n"
     result += "\n".join(findings) + "\n\n"
@@ -249,13 +268,23 @@ def audit_article_claims() -> str:
     ch68 = scores.get(68, {})
     if ch68:
         if ch68.get("language_experimentation") != 10:
-            issues.append(f"Ch.68 language_experimentation = {ch68.get('language_experimentation')}, article says 10")
+            issues.append(
+                "Ch.68 language_experimentation = "
+                f"{ch68.get('language_experimentation')}, article says 10"
+            )
         if ch68.get("love_and_desire") != 9:
-            issues.append(f"Ch.68 love_and_desire = {ch68.get('love_and_desire')}, article says 9")
+            issues.append(
+                f"Ch.68 love_and_desire = {ch68.get('love_and_desire')}, article says 9"
+            )
         if ch68.get("spatial_grounding") not in (1, 2):
-            issues.append(f"Ch.68 spatial_grounding = {ch68.get('spatial_grounding')}, expected 1-2 (minimal grounding)")
+            issues.append(
+                "Ch.68 spatial_grounding = "
+                f"{ch68.get('spatial_grounding')}, expected 1-2 (minimal grounding)"
+            )
         if ch68.get("dialogue_density") != 1:
-            issues.append(f"Ch.68 dialogue_density = {ch68.get('dialogue_density')}, article says 1")
+            issues.append(
+                f"Ch.68 dialogue_density = {ch68.get('dialogue_density')}, article says 1"
+            )
         checks.append("Ch.68 (Gliglico) scores: " + ("VERIFIED" if not issues else "MISMATCH"))
     else:
         issues.append("Ch.68 not found in v1 scores")
@@ -264,7 +293,9 @@ def audit_article_claims() -> str:
     ch1 = scores.get(1, {})
     if ch1:
         if ch1.get("oliveira_centrality") != 10:
-            issues.append(f"Ch.1 oliveira_centrality = {ch1.get('oliveira_centrality')}, article says 10")
+            issues.append(
+                f"Ch.1 oliveira_centrality = {ch1.get('oliveira_centrality')}, article says 10"
+            )
         checks.append(f"Ch.1 oliveira_centrality = {ch1.get('oliveira_centrality')}: VERIFIED")
 
     # Section counts
@@ -286,7 +317,10 @@ def audit_article_claims() -> str:
     alla_oli = np.mean([scores[ch]["oliveira_centrality"] for ch in alla_ch if ch in scores])
     alla_int = np.mean([scores[ch]["interiority"] for ch in alla_ch if ch in scores])
     alla_exi = np.mean([scores[ch]["existential_questioning"] for ch in alla_ch if ch in scores])
-    checks.append(f"Allá means: Oliveira={alla_oli:.1f}, Interiority={alla_int:.1f}, Existential={alla_exi:.1f}")
+    checks.append(
+        f"Allá means: Oliveira={alla_oli:.1f}, Interiority={alla_int:.1f}, "
+        f"Existential={alla_exi:.1f}"
+    )
     # Article says 8.6, 8.6, 7.9
     if abs(alla_oli - 8.6) > 0.15:
         issues.append(f"Article says Allá oliveira_centrality=8.6 but actual is {alla_oli:.1f}")
@@ -345,7 +379,7 @@ def audit_visualizations() -> str:
     if missing:
         result += f"**Missing ({len(missing)}):** " + ", ".join(missing) + "\n\n"
     if small:
-        result += f"**Suspiciously small:** " + ", ".join(small) + "\n\n"
+        result += "**Suspiciously small:** " + ", ".join(small) + "\n\n"
     result += f"**Present ({len(results)}):**\n" + "\n".join(results) + "\n"
     return result
 
@@ -403,14 +437,27 @@ def audit_v2_comparison() -> str:
             all_diffs.append(v1_scores[ch][d] - v2_scores[ch][d])
     all_diffs = np.array(all_diffs)
 
-    lines.append(f"### Global Summary ({len(common)} ch × {len(dims)} dims = {len(all_diffs)} scores)")
+    lines.append(
+        f"### Global Summary ({len(common)} ch × {len(dims)} dims = "
+        f"{len(all_diffs)} scores)"
+    )
     lines.append(f"- Mean diff (v1 − v2): {all_diffs.mean():+.2f}")
     lines.append(f"- Std of diff: {all_diffs.std():.2f}")
     lines.append(f"- Mean |diff|: {np.abs(all_diffs).mean():.2f}")
-    lines.append(f"- Exact matches: {np.sum(all_diffs == 0)} ({100*np.sum(all_diffs==0)/len(all_diffs):.0f}%)")
-    lines.append(f"- Within ±1: {np.sum(np.abs(all_diffs)<=1)} ({100*np.sum(np.abs(all_diffs)<=1)/len(all_diffs):.0f}%)")
-    lines.append(f"- Within ±2: {np.sum(np.abs(all_diffs)<=2)} ({100*np.sum(np.abs(all_diffs)<=2)/len(all_diffs):.0f}%)")
-    lines.append(f"- Large diffs (|d|≥4): {np.sum(np.abs(all_diffs)>=4)} ({100*np.sum(np.abs(all_diffs)>=4)/len(all_diffs):.1f}%)")
+    exact_matches = np.sum(all_diffs == 0)
+    within_one = np.sum(np.abs(all_diffs) <= 1)
+    within_two = np.sum(np.abs(all_diffs) <= 2)
+    large_diffs = np.sum(np.abs(all_diffs) >= 4)
+    total_scores = len(all_diffs)
+    lines.append(
+        f"- Exact matches: {exact_matches} ({100 * exact_matches / total_scores:.0f}%)"
+    )
+    lines.append(f"- Within ±1: {within_one} ({100 * within_one / total_scores:.0f}%)")
+    lines.append(f"- Within ±2: {within_two} ({100 * within_two / total_scores:.0f}%)")
+    lines.append(
+        f"- Large diffs (|d|≥4): {large_diffs} "
+        f"({100 * large_diffs / total_scores:.1f}%)"
+    )
     lines.append("")
 
     # Per-dimension correlation
@@ -437,25 +484,29 @@ def audit_v2_comparison() -> str:
     if problematic:
         lines.append("### Problematic Dimensions (r < 0.5)")
         for d, r in problematic:
-            lines.append(f"- **{d}**: r = {r:+.3f} — this dimension is interpreted differently by v1 and v2")
+            lines.append(
+                f"- **{d}**: r = {r:+.3f} — this dimension is interpreted "
+                "differently by v1 and v2"
+            )
         lines.append("")
 
     # Score distribution comparison
     v1_all = np.array([v1_scores[ch][d] for ch in common for d in dims])
     v2_all = np.array([v2_scores[ch][d] for ch in common for d in dims])
     lines.append("### Score Distribution")
-    lines.append(f"- v1: mean={v1_all.mean():.2f}, std={v1_all.std():.2f}, median={np.median(v1_all):.0f}")
-    lines.append(f"- v2: mean={v2_all.mean():.2f}, std={v2_all.std():.2f}, median={np.median(v2_all):.0f}")
+    lines.append(
+        f"- v1: mean={v1_all.mean():.2f}, std={v1_all.std():.2f}, "
+        f"median={np.median(v1_all):.0f}"
+    )
+    lines.append(
+        f"- v2: mean={v2_all.mean():.2f}, std={v2_all.std():.2f}, "
+        f"median={np.median(v2_all):.0f}"
+    )
     lines.append("")
 
     # If we have enough v2 data, reproduce the permutation test
     if len(common) >= 50:
         lines.append("### Permutation Test with v2 Scores")
-
-        with open(PROJECT_ROOT / "data" / "rayuela_raw.json") as f:
-            raw = json.load(f)
-        emb_a = np.load(PROJECT_ROOT / "outputs" / "embeddings" / "chapter_embeddings.npy")
-        ch_to_idx = {ch["number"]: i for i, ch in enumerate(raw["chapters"])}
 
         rng = np.random.default_rng(RNG_SEED)
 
@@ -494,12 +545,21 @@ def audit_v2_comparison() -> str:
         lines.append(f"- **v2 Linear**: z = {z_lin:+.2f}σ (null: shuffled Ch.1-56)")
         lines.append(f"- **v2 Hopscotch**: z = {z_hop:+.2f}σ (null: shuffled all 155 ch)")
         lines.append(f"- Linear null: μ={lin_rand_means.mean():.4f}, σ={lin_rand_means.std():.4f}")
-        lines.append(f"- Hopscotch null: μ={hop_rand_means.mean():.4f}, σ={hop_rand_means.std():.4f}")
+        lines.append(
+            f"- Hopscotch null: μ={hop_rand_means.mean():.4f}, "
+            f"σ={hop_rand_means.std():.4f}"
+        )
 
         if z_lin > 3 and abs(z_hop) < 2:
-            lines.append("- **CONCLUSION: Core finding CONFIRMED with v2 scores.** Linear designed, hopscotch random.")
+            lines.append(
+                "- **CONCLUSION: Core finding CONFIRMED with v2 scores.** "
+                "Linear designed, hopscotch random."
+            )
         elif z_lin > 3 and abs(z_hop) > 2:
-            lines.append("- **CAUTION: v2 shows hopscotch may be somewhat designed.** Core finding partially overturned.")
+            lines.append(
+                "- **CAUTION: v2 shows hopscotch may be somewhat designed.** "
+                "Core finding partially overturned."
+            )
         else:
             lines.append("- **WARNING: v2 results diverge from v1. Manual review needed.**")
         lines.append("")
@@ -534,7 +594,6 @@ def audit_edge_cases() -> str:
 
     with open(PROJECT_ROOT / "data" / "rayuela_raw.json") as f:
         raw = json.load(f)
-    meta = {ch["number"]: ch for ch in raw["chapters"]}
 
     # Check TABLERO validity
     tablero_set = set(TABLERO)
@@ -572,7 +631,10 @@ def audit_edge_cases() -> str:
             issues.append(f"Ch.{ch['chapter']}: ALL scores are 10 — possible extraction failure")
         n_extreme = sum(1 for v in vals if v in (1, 10))
         if n_extreme >= 15:
-            issues.append(f"Ch.{ch['chapter']}: {n_extreme}/20 scores at extremes (1 or 10) — may lack nuance")
+            issues.append(
+                f"Ch.{ch['chapter']}: {n_extreme}/20 scores at extremes "
+                "(1 or 10) — may lack nuance"
+            )
 
     result = "## Audit 6: Edge Cases & Potential Issues\n\n"
     result += "\n".join(f"- {i}" for i in issues) + "\n"
@@ -610,7 +672,7 @@ def main():
     # Write initial report without v2
     sections.append("## Audit 5: v1 vs v2 Comparison\n\nWaiting for v2 extraction to complete...\n")
     write_report(sections)
-    log(f"Initial report written (without v2). Monitoring v2 progress...")
+    log("Initial report written (without v2). Monitoring v2 progress...")
 
     # Monitor v2 progress, updating report every 10 minutes
     max_wait_hours = 8

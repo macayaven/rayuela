@@ -21,21 +21,31 @@ Output: outputs/figures/article_*.html
 
 import argparse
 import json
-import numpy as np
-from pathlib import Path
 from itertools import pairwise
 
+import numpy as np
+import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import plotly.express as px
 
 from project_config import (
-    PROJECT_ROOT, OUTPUT_FIGURES_DIR, NARRATIVE_DNA_PATH,
-    TABLERO, LINEAR_ORDER, SECTION_COLORS, SECTION_SHORT,
-    DIM_GROUPS, DIMS_ORDERED, DIM_LABELS,
-    DistanceMetric, RNG_SEED, N_PERMS,
-    z_score as compute_z_score, z_standardize,
-    z_standardize_scores_dict, get_all_chapters,
+    DIM_GROUPS,
+    DIM_LABELS,
+    DIMS_ORDERED,
+    LINEAR_ORDER,
+    N_PERMS,
+    NARRATIVE_DNA_PATH,
+    OUTPUT_FIGURES_DIR,
+    RNG_SEED,
+    SECTION_COLORS,
+    SECTION_SHORT,
+    TABLERO,
+    DistanceMetric,
+    get_all_chapters,
+    z_standardize_scores_dict,
+)
+from project_config import (
+    z_score as compute_z_score,
 )
 
 # ---------------------------------------------------------------------------
@@ -51,7 +61,7 @@ OUTPUT_DIR = OUTPUT_FIGURES_DIR
 
 def load_all_data():
     """Load chapter metadata and narrative DNA vectors."""
-    from project_config import DATA_PATH, NARRATIVE_DNA_PATH, EMB_A_PATH
+    from project_config import DATA_PATH, EMB_A_PATH
 
     with open(DATA_PATH) as f:
         raw = json.load(f)
@@ -62,8 +72,7 @@ def load_all_data():
     dna_chapters = dna["chapters"]
     dims = dna["dimensions"]
 
-    # Build score matrix (N_extracted × 20) and chapter number list
-    ch_nums = [ch["chapter"] for ch in dna_chapters]
+    # Build score matrix (N_extracted × 20)
     scores = {
         ch["chapter"]: {d: ch["scores"][d] for d in dims}
         for ch in dna_chapters
@@ -111,9 +120,9 @@ def fig_heatmap(dna_chapters, dims, scores, meta_by_num):
 
     # Custom hover text
     hover = []
-    for i, ch in enumerate(ch_nums):
+    for ch in ch_nums:
         row = []
-        for j, d in enumerate(DIMS_ORDERED):
+        for d in DIMS_ORDERED:
             row.append(
                 f"Ch.{ch} — {DIM_LABELS.get(d, d)}: {scores[ch][d]}"
             )
@@ -132,12 +141,6 @@ def fig_heatmap(dna_chapters, dims, scores, meta_by_num):
         hoverinfo="text",
         colorbar=dict(title="Score", x=1.02),
     ))
-
-    # Add section color strip as a narrow heatmap on the left
-    # (encoded as numeric: 0=Allá, 1=Acá, 2=Otros)
-    sec_map = {"Del lado de allá": 0, "Del lado de acá": 1,
-               "De otros lados (Capítulos prescindibles)": 2}
-    sec_vals = [[sec_map.get(meta_by_num[ch]["section"], 2)] for ch in ch_nums]
 
     # Add dimension group separators as vertical lines
     group_boundaries = []
@@ -222,7 +225,7 @@ def fig_emotional_journeys(scores, meta_by_num):
         shared_xaxes=False,
     )
 
-    for row, (path, path_name) in enumerate([
+    for row, (path, _path_name) in enumerate([
         (LINEAR_ORDER, "Linear"),
         (TABLERO, "Hopscotch"),
     ], start=1):
@@ -499,7 +502,7 @@ def fig_correlation_matrix(scores):
 
     # Add dimension group separators
     cumulative = 0
-    for group_name, group_dims in DIM_GROUPS.items():
+    for _group_name, group_dims in DIM_GROUPS.items():
         cumulative += len(group_dims)
         if cumulative < len(DIMS_ORDERED):
             fig.add_hline(y=cumulative - 0.5, line_width=2, line_color="white")
@@ -555,8 +558,11 @@ def fig_section_distributions(scores, meta_by_num):
             if vals:
                 section_means[sec] = statistics.mean(vals)
         if len(section_means) >= 2:
-            overall_mean = statistics.mean(section_means.values())
-            between_var = statistics.variance(section_means.values()) if len(section_means) > 1 else 0
+            between_var = (
+                statistics.variance(section_means.values())
+                if len(section_means) > 1
+                else 0
+            )
             dim_interest[d] = between_var
 
     # Pick top 10 most differentiating dimensions
@@ -572,7 +578,7 @@ def fig_section_distributions(scores, meta_by_num):
     }
 
     for sec_label, color in sec_colors.items():
-        for d, d_label in zip(top_dims, top_labels):
+        for d, d_label in zip(top_dims, top_labels, strict=True):
             vals = [r["score"] for r in data_rows
                     if r["section"] == sec_label and r["dim_key"] == d]
             if not vals:
@@ -705,7 +711,7 @@ def fig_dual_heatmap(scores, meta_by_num):
         horizontal_spacing=0.08,
     )
 
-    for col, (path, path_name) in enumerate([
+    for col, (path, _path_name) in enumerate([
         (LINEAR_ORDER, "Linear"),
         (TABLERO, "Hopscotch"),
     ], start=1):
@@ -728,8 +734,6 @@ def fig_dual_heatmap(scores, meta_by_num):
                 sec_indicators.append("🟠")
             else:
                 sec_indicators.append("🟣")
-
-        y_labels_with_sec = [f"{sec} {label}" for sec, label in zip(sec_indicators, y_labels)]
 
         hover = []
         for i, ch in enumerate(valid):
@@ -759,8 +763,9 @@ def fig_dual_heatmap(scores, meta_by_num):
         title=dict(
             text=(
                 "The Same Novel, Two Reading Orders: Narrative DNA Heatmaps<br>"
-                "<sub>Each row is a reading step; columns are the 19 semantic dimensions. "
-                "Linear reading shows smooth gradients; hopscotch creates deliberate discontinuity.</sub>"
+                "<sub>Each row is a reading step; columns are the 19 semantic "
+                "dimensions. Linear reading shows smooth gradients; hopscotch "
+                "creates deliberate discontinuity.</sub>"
             ),
             font=dict(size=14),
         ),

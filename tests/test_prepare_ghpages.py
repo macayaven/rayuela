@@ -83,3 +83,45 @@ def test_main_skips_missing_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     prepare_ghpages.main()
 
     assert (docs_dir / "index.html").exists()
+
+
+def test_extract_published_targets_parses_custom_domain_links() -> None:
+    markdown = (
+        "[Figure 1](https://carloscrespomacaya.com/rayuela/3d_scale_a.html)\n"
+        "[Figure 2](https://carloscrespomacaya.com/rayuela/article_heatmap.html)\n"
+        "[Repeat](https://carloscrespomacaya.com/rayuela/3d_scale_a.html)\n"
+    )
+
+    targets = prepare_ghpages.extract_published_targets(markdown)
+
+    assert targets == ["3d_scale_a.html", "article_heatmap.html"]
+
+
+def test_validate_published_targets_reports_missing_docs_and_bundle_entries(
+    tmp_path: Path,
+) -> None:
+    article_path = tmp_path / "ARTICLE.md"
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    article_path.write_text(
+        "[Figure](https://carloscrespomacaya.com/rayuela/article_heatmap.html)\n"
+        "[Figure 2](https://carloscrespomacaya.com/rayuela/3d_scale_a.html)\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "article_heatmap.html").write_text("ok", encoding="utf-8")
+
+    missing_docs, missing_publish_bundle = prepare_ghpages.validate_published_targets(
+        article_paths=[article_path],
+        docs_dir=docs_dir,
+        include_files=["article_heatmap.html"],
+    )
+
+    assert missing_docs == ["3d_scale_a.html"]
+    assert missing_publish_bundle == ["3d_scale_a.html"]
+
+
+def test_repo_article_links_resolve_to_docs_bundle() -> None:
+    missing_docs, missing_publish_bundle = prepare_ghpages.validate_published_targets()
+
+    assert missing_docs == []
+    assert missing_publish_bundle == []

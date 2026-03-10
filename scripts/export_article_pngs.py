@@ -13,24 +13,23 @@ Usage (inside Docker container — kaleido must be installed):
     pip install kaleido && python scripts/export_article_pngs.py
 """
 
+import importlib
 import json
 import re
 import sys
 from pathlib import Path
 
+import plotly.graph_objects as go
+
 # Add src/ to path so we can import article_figures
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-import plotly.graph_objects as go
-import plotly.io as pio
-
-from article_figures import (
-    load_all_data,
-    fig_permutation_test,
-    fig_section_weaving,
-    fig_emotional_journeys,
-)
+article_figures = importlib.import_module("article_figures")
+fig_emotional_journeys = article_figures.fig_emotional_journeys
+fig_permutation_test = article_figures.fig_permutation_test
+fig_section_weaving = article_figures.fig_section_weaving
+load_all_data = article_figures.load_all_data
 
 OUTPUT_DIR = PROJECT_ROOT / "outputs" / "figures" / "png"
 HTML_DIR = PROJECT_ROOT / "outputs" / "figures"
@@ -52,7 +51,10 @@ def extract_figure_from_html(html_path: Path) -> go.Figure:
 
     # Try to find the plotly JSON figure specification
     # Plotly stores it as: {"data": [...], "layout": {...}}
-    pattern = r'Plotly\.(?:newPlot|react)\(\s*["\'][\w-]+["\']\s*,\s*(\[.*?\])\s*,\s*(\{.*?\})\s*[,\)]'
+    pattern = (
+        r'Plotly\.(?:newPlot|react)\(\s*["\'][\w-]+["\']\s*,\s*'
+        r'(\[.*?\])\s*,\s*(\{.*?\})\s*[,\)]'
+    )
     match = re.search(pattern, html, re.DOTALL)
 
     if match:

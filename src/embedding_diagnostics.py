@@ -10,8 +10,9 @@ Usage (inside Docker container):
 """
 
 import json
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EMB_PATH = PROJECT_ROOT / "outputs" / "embeddings" / "chapter_embeddings.npy"

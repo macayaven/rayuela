@@ -7,11 +7,17 @@ it with a CDN reference, reducing file sizes from ~4.7 MB to ~100-200 KB.
 """
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIR = PROJECT_ROOT / "outputs" / "figures"
 DOCS_DIR = PROJECT_ROOT / "docs"
+ARTICLE_SOURCES = [
+    PROJECT_ROOT / "ARTICLE_PART1_MEDIUM.md",
+    PROJECT_ROOT / "ARTICLE_PART2_MEDIUM.md",
+]
+PAGES_BASE_URL = "https://carloscrespomacaya.com/rayuela/"
 
 # Plotly CDN URL (pinned version to match the embedded one)
 PLOTLY_CDN = '<script src="https://cdn.plot.ly/plotly-3.3.1.min.js"></script>'
@@ -41,6 +47,41 @@ INCLUDE_FILES = [
     "3d_scale_b_pca8.html",
     "3d_scale_b_decorr.html",
 ]
+
+
+def extract_published_targets(markdown: str, *, base_url: str = PAGES_BASE_URL) -> list[str]:
+    """Extract published Pages HTML targets referenced from article markdown."""
+    pattern = re.compile(rf"{re.escape(base_url)}([^)\s?#]+)")
+    targets: list[str] = []
+    for match in pattern.finditer(markdown):
+        target = match.group(1)
+        if target.endswith(".html") and target not in targets:
+            targets.append(target)
+    return targets
+
+
+def validate_published_targets(
+    *,
+    article_paths: Sequence[Path] | None = None,
+    docs_dir: Path = DOCS_DIR,
+    include_files: Sequence[str] | None = None,
+    base_url: str = PAGES_BASE_URL,
+) -> tuple[list[str], list[str]]:
+    """Return missing docs targets and missing publish-bundle registrations."""
+    resolved_article_paths = ARTICLE_SOURCES if article_paths is None else article_paths
+    resolved_include_files = INCLUDE_FILES if include_files is None else include_files
+    referenced_targets: list[str] = []
+    for article_path in resolved_article_paths:
+        markdown = article_path.read_text(encoding="utf-8")
+        for target in extract_published_targets(markdown, base_url=base_url):
+            if target not in referenced_targets:
+                referenced_targets.append(target)
+
+    missing_docs = [target for target in referenced_targets if not (docs_dir / target).exists()]
+    missing_publish_bundle = [
+        target for target in referenced_targets if target not in resolved_include_files
+    ]
+    return missing_docs, missing_publish_bundle
 
 
 def strip_inline_plotly(html: str) -> str:

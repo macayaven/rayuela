@@ -3,6 +3,11 @@
 # NOTE: vLLM runs as a separate NVIDIA container (see docker-compose.yml)
 FROM nvcr.io/nvidia/pytorch:26.02-py3
 
+ARG RAYUELA_USER=carlos
+ARG RAYUELA_GROUP=carlos
+ARG RAYUELA_UID=1000
+ARG RAYUELA_GID=1000
+
 WORKDIR /workspace/rayuela
 
 # Guard against PyTorch/CUDA replacement: extract torch-related packages
@@ -65,7 +70,23 @@ RUN pip install --no-cache-dir \
 # Download the large Spanish model (includes word vectors)
 RUN python -m spacy download es_core_news_lg
 
+RUN groupadd --gid "${RAYUELA_GID}" "${RAYUELA_GROUP}" \
+    && useradd \
+        --uid "${RAYUELA_UID}" \
+        --gid "${RAYUELA_GID}" \
+        --create-home \
+        --shell /bin/bash \
+        "${RAYUELA_USER}" \
+    && mkdir -p "/home/${RAYUELA_USER}/.cache/huggingface" \
+    && chown -R "${RAYUELA_UID}:${RAYUELA_GID}" /workspace/rayuela "/home/${RAYUELA_USER}"
+
+ENV HOME=/home/${RAYUELA_USER}
+ENV HF_HOME=${HOME}/.cache/huggingface
+ENV PATH=${HOME}/.local/bin:${PATH}
+
+USER ${RAYUELA_UID}:${RAYUELA_GID}
+
 # JupyterLab only (vLLM runs in its own container on port 8000)
 EXPOSE 8888
 
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--no-browser"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--no-browser"]

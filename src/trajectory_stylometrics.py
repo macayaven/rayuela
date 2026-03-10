@@ -23,17 +23,26 @@ Usage (inside Docker container):
 
 import argparse
 import json
+
 import numpy as np
-from pathlib import Path
 
 from project_config import (
-    PROJECT_ROOT, DATA_PATH, STYLO_PATH, EMB_A_PATH, EMB_B_PATH,
-    DistanceMetric, RNG_SEED, N_PERMS,
-    z_score as compute_z_score,
-    z_standardize, continuity_corrected_percentile, get_all_chapters,
+    DATA_PATH,
+    EMB_A_PATH,
+    EMB_B_PATH,
+    N_PERMS,
+    PROJECT_ROOT,
+    RNG_SEED,
+    STYLO_PATH,
+    DistanceMetric,
+    continuity_corrected_percentile,
     filter_excluded_dims,
+    get_all_chapters,
+    z_standardize,
 )
-
+from project_config import (
+    z_score as compute_z_score,
+)
 
 # ---------------------------------------------------------------------------
 # Distance metrics
@@ -245,7 +254,7 @@ def main():
     n_perms = args.n_perms
 
     # Load reading paths from single source of truth
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
+    with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
     linear_path = data["reading_paths"]["linear"]
     hopscotch_path = data["reading_paths"]["hopscotch"]
@@ -268,7 +277,7 @@ def main():
         results.append(res)
     else:
         print(f"\n  [SKIP] Scale A' — {STYLO_PATH} not found")
-        print(f"         Run: python src/stylometrics.py")
+        print("         Run: python src/stylometrics.py")
 
     # --- Scale A: E5 embeddings ---
     if EMB_A_PATH.exists():
@@ -368,7 +377,9 @@ def main():
             "hopscotch_null_mean": float(hop_rand_curvs.mean()),
             "hopscotch_null_std": float(hop_rand_curvs.std()),
             "linear_z": float(compute_z_score(lin_curv, lin_rand_curvs, DistanceMetric.EUCLIDEAN)),
-            "hopscotch_z": float(compute_z_score(hop_curv, hop_rand_curvs, DistanceMetric.EUCLIDEAN)),
+            "hopscotch_z": float(
+                compute_z_score(hop_curv, hop_rand_curvs, DistanceMetric.EUCLIDEAN)
+            ),
         })
 
     print()
@@ -378,8 +389,11 @@ def main():
     for r in curvature_results:
         print(f"    {r['name']:<50} Lin: {r['linear_z']:+.2f}σ  Hop: {r['hopscotch_z']:+.2f}σ")
         if r['dimensions'] > 100:
-            print(f"      ⚠ d={r['dimensions']}: concentration of measure — all angles cluster "
-                  f"near {r['hopscotch_null_mean']:.3f} rad, z-scores have limited interpretive value")
+            print(
+                f"      ⚠ d={r['dimensions']}: concentration of measure — all angles cluster "
+                f"near {r['hopscotch_null_mean']:.3f} rad; z-scores have limited interpretive "
+                "value"
+            )
 
     # --- Distance autocorrelation ---
     print("\n" + "=" * 65)
@@ -400,7 +414,7 @@ def main():
         print(f"\n  {name}:")
         print(f"    {'Lag':>5} {'Linear r':>10} {'Hopscotch r':>12}")
         print(f"    {'─' * 5} {'─' * 10} {'─' * 12}")
-        for lag, (lr, hr) in enumerate(zip(lin_auto, hop_auto), start=1):
+        for lag, (lr, hr) in enumerate(zip(lin_auto, hop_auto, strict=True), start=1):
             print(f"    {lag:>5} {lr:>+10.3f} {hr:>+12.3f}")
 
         autocorrelation_results[name] = {
