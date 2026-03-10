@@ -484,3 +484,71 @@ def test_failed_setup_still_finalizes_manifest(
     assert manifest_payload["status"] == "failed"
     assert manifest_payload["error_message"] == "split load failed"
     assert indexed_payload["status"] == "failed"
+
+
+def test_manifest_write_failure_removes_empty_run_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, _, split_manifest_path, target_envelopes_path = _build_phase5_artifacts(tmp_path)
+    monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(reconstruction_train, "detect_git_sha", lambda project_root: "feedface")
+    monkeypatch.setattr(
+        reconstruction_train,
+        "write_run_manifest",
+        lambda manifest, paths=None: (_ for _ in ()).throw(RuntimeError("manifest write failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="manifest write failed"):
+        reconstruction_train.main(
+            [
+                "--run-id",
+                "phase5-manifest-failure",
+                "--split-manifest-path",
+                str(split_manifest_path),
+                "--target-envelopes-path",
+                str(target_envelopes_path),
+            ]
+        )
+
+    run_dir = tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-manifest-failure"
+    indexed_manifest_path = (
+        tmp_path / "outputs" / "reconstruction" / "manifests" / "phase5-manifest-failure.json"
+    )
+
+    assert not run_dir.exists()
+    assert not indexed_manifest_path.exists()
+
+
+def test_keyboard_interrupt_marks_manifest_failed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, _, split_manifest_path, target_envelopes_path = _build_phase5_artifacts(tmp_path)
+    monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(reconstruction_train, "detect_git_sha", lambda project_root: "feedface")
+    monkeypatch.setattr(
+        reconstruction_train,
+        "load_split_manifest",
+        lambda path: (_ for _ in ()).throw(KeyboardInterrupt("stop requested")),
+    )
+
+    with pytest.raises(KeyboardInterrupt, match="stop requested"):
+        reconstruction_train.main(
+            [
+                "--run-id",
+                "phase5-interrupted",
+                "--split-manifest-path",
+                str(split_manifest_path),
+                "--target-envelopes-path",
+                str(target_envelopes_path),
+            ]
+        )
+
+    manifest_path = (
+        tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-interrupted" / "manifest.json"
+    )
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest_payload["status"] == "failed"
+    assert manifest_payload["error_message"] == "stop requested"

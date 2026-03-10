@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -264,6 +265,15 @@ def _write_placeholder_adapter(adapter_dir: Path) -> Path:
     return adapter_path
 
 
+def _cleanup_failed_run_initialization(run_id: str, *, paths: ReconstructionPaths) -> None:
+    """Remove partially initialized manifest files so a failed setup can be retried cleanly."""
+    paths.manifest_path(run_id).unlink(missing_ok=True)
+    paths.indexed_manifest_path(run_id).unlink(missing_ok=True)
+    run_dir = paths.run_dir(run_id)
+    if run_dir.exists():
+        shutil.rmtree(run_dir)
+
+
 def build_argument_parser() -> argparse.ArgumentParser:
     """Create CLI parser for Phase 5 scaffold runs."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -310,27 +320,33 @@ def main(argv: list[str] | None = None) -> int:
     metrics_path = run_dir / "training_metrics.json"
     checkpoint_path = run_dir / "checkpoint_metadata.json"
     adapter_dir = run_dir / "adapter"
-    run_manifest = build_run_manifest(
-        run_id=args.run_id,
-        phase="phase-5-training-scaffold",
-        model_id=args.model_id,
-        seed=args.seed,
-        git_sha=git_sha,
-        config_payload={
-            "training_config_path": to_project_relative(config_path, paths.project_root),
-            "checkpoint_metadata_path": to_project_relative(checkpoint_path, paths.project_root),
-            "dataset_mode": args.dataset_mode,
-        },
-        corpus_manifest=to_project_relative(
-            args.corpus_output_dir / "corpus_metadata.json",
-            paths.project_root,
-        ),
-        split_manifest=args.split_manifest_path,
-        paths=paths,
-    )
-    write_run_manifest(run_manifest, paths=paths)
+    try:
+        run_manifest = build_run_manifest(
+            run_id=args.run_id,
+            phase="phase-5-training-scaffold",
+            model_id=args.model_id,
+            seed=args.seed,
+            git_sha=git_sha,
+            config_payload={
+                "training_config_path": to_project_relative(config_path, paths.project_root),
+                "checkpoint_metadata_path": to_project_relative(
+                    checkpoint_path, paths.project_root
+                ),
+                "dataset_mode": args.dataset_mode,
+            },
+            corpus_manifest=to_project_relative(
+                args.corpus_output_dir / "corpus_metadata.json",
+                paths.project_root,
+            ),
+            split_manifest=args.split_manifest_path,
+            paths=paths,
+        )
+        write_run_manifest(run_manifest, paths=paths)
+    except Exception:
+        _cleanup_failed_run_initialization(args.run_id, paths=paths)
+        raise
 
-    run_status = RunStatus.COMPLETED
+    run_status = RunStatus.RUNNING
     error_message: str | None = None
     try:
         split_manifest = load_split_manifest(args.split_manifest_path)
@@ -388,7 +404,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         logger.log_metrics({"training_examples": float(len(examples))})
         logger.finish()
-    except Exception as exc:
+        run_status = RunStatus.COMPLETED
+    except BaseException as exc:
         run_status = RunStatus.FAILED
         error_message = str(exc)
         raise
