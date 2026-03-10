@@ -323,13 +323,14 @@ def test_checkpoint_metadata_is_complete(
     assert payload["phase"] == "phase-5-training-scaffold"
     assert payload["model_id"] == "google/mt5-xl"
     assert payload["adapter_artifact_path"].endswith("adapter/adapter_model.safetensors")
+    assert payload["adapter_is_placeholder"] is True
     assert payload["config_path"].endswith("training_config.json")
     assert payload["tokenizer_config_path"].endswith("tokenizer_config.json")
     assert payload["metrics_path"].endswith("training_metrics.json")
     assert payload["split_counts"] == {"train": 4, "val": 4, "test": 4}
 
 
-def test_inference_pipeline_loads_saved_adapter(
+def test_inference_pipeline_refuses_placeholder_adapter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -364,12 +365,8 @@ def test_inference_pipeline_loads_saved_adapter(
         / "checkpoint_metadata.json"
     )
 
-    loaded = reconstruction_infer.load_saved_adapter(metadata_path)
-
-    assert loaded["run_id"] == "phase5-infer"
-    assert loaded["model_id"] == "google/mt5-xl"
-    assert loaded["adapter_type"] == "qlora"
-    assert loaded["adapter_artifact_path"].endswith("adapter/adapter_model.safetensors")
+    with pytest.raises(ValueError, match="placeholder adapter"):
+        reconstruction_infer.load_saved_adapter(metadata_path)
 
 
 def test_optional_wandb_logging_records_run_metadata(monkeypatch: pytest.MonkeyPatch) -> None:

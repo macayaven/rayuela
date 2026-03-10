@@ -29,12 +29,16 @@ from reconstruction_contract import (
     write_run_manifest,
 )
 from reconstruction_dataset import SplitManifest, TargetEnvelope, WindowRecord, extract_windows
-from reconstruction_dataset import _load_json as _load_pilot_json
 from reconstruction_metrics import ToleranceConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_ID = "google/mt5-xl"
 DEFAULT_DATASET_MODE = "identity_smoke"
+
+
+def _load_pilot_json(path: Path) -> Any:
+    """Load pilot JSON payloads without relying on another module's private helpers."""
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,7 @@ class CheckpointMetadata:
     model_id: str
     adapter_type: str
     adapter_artifact_path: str
+    adapter_is_placeholder: bool
     config_path: str
     tokenizer_config_path: str
     metrics_path: str
@@ -368,6 +373,7 @@ def main(argv: list[str] | None = None) -> int:
             model_id=args.model_id,
             adapter_type="qlora",
             adapter_artifact_path=to_project_relative(adapter_path, paths.project_root),
+            adapter_is_placeholder=True,
             config_path=to_project_relative(config_path, paths.project_root),
             tokenizer_config_path=to_project_relative(tokenizer_config_path, paths.project_root),
             metrics_path=to_project_relative(metrics_path, paths.project_root),

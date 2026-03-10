@@ -16,6 +16,11 @@ from typing import Any
 def load_saved_adapter(checkpoint_metadata_path: Path) -> dict[str, Any]:
     """Load adapter metadata saved by the Phase 5 training scaffold."""
     payload = json.loads(checkpoint_metadata_path.read_text(encoding="utf-8"))
+    if bool(payload.get("adapter_is_placeholder", False)):
+        raise ValueError(
+            "checkpoint metadata refers to a placeholder adapter from a scaffold-only run; "
+            "inference is unavailable until a real adapter artifact exists."
+        )
     return {
         "run_id": payload["run_id"],
         "git_sha": payload["git_sha"],
@@ -23,6 +28,7 @@ def load_saved_adapter(checkpoint_metadata_path: Path) -> dict[str, Any]:
         "model_id": payload["model_id"],
         "adapter_type": payload["adapter_type"],
         "adapter_artifact_path": payload["adapter_artifact_path"],
+        "adapter_is_placeholder": bool(payload.get("adapter_is_placeholder", False)),
         "config_path": payload["config_path"],
         "tokenizer_config_path": payload["tokenizer_config_path"],
         "metrics_path": payload["metrics_path"],
