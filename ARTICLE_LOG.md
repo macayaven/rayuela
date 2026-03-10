@@ -340,3 +340,66 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 - full `mypy` passed
 
 **For Part 3**: Phase 5 now has a reproducible training scaffold that enforces the same run contract as Phases 0–4, enabling a disciplined first fine-tune without reworking the metadata and artifact envelope.
+
+### 2026-03-10 — Part 3 Phase 6: Analysis Aggregation and Article Inputs
+
+**Phase**: Part 3 — Phase 6 (Analysis, Bias Audit, and Article Synthesis)
+
+**What happened**: Added `src/reconstruction_analysis.py` and `tests/test_reconstruction_analysis.py` test-first to aggregate immutable prompt-baseline runs into a Phase 6 synthesis layer. The new module loads saved case histories from run directories, builds a complete cross-run case table, labels failure modes from the Phase 2/4 scoring contract, summarizes source-side bias slices by work and author, and emits article-ready JSON/Markdown artifacts plus a close-reading queue keyed by `run_id`.
+
+**Key decision**: Phase 6 should stay operationally decoupled from notebooks and memory. Instead of writing bespoke narrative notes by hand, the synthesis layer now derives its article inputs directly from immutable run artifacts, which gives later live baselines and training runs the same aggregation path.
+
+**Verification**:
+- `pytest tests/test_reconstruction_analysis.py -q --no-cov` passed
+- `ruff check src/reconstruction_analysis.py tests/test_reconstruction_analysis.py` passed
+
+**Current runtime synthesis**:
+- local Phase 6 aggregation ran against `phase4-dry-run-20260309a`
+- 2 prompt-baseline cases were synthesized into the new article-input bundle
+- both cases stopped on `stalled_revision`; one also failed `target_miss`
+- current high/low queue for close reading is Borges -> Bolaño (`0.5807`) vs Borges -> García Márquez (`0.5504`)
+
+**For Part 3**: The experiment now has an analysis contract ready for tomorrow's real runs. As soon as additional prompt-baseline or fine-tuning outputs exist, they can be folded into the same failure taxonomy, bias slices, and close-reading queue without redefining Phase 6.
+
+### 2026-03-10 — Part 3 Guided Scheduler Scaffold
+
+**Phase**: Part 3 — Experiment Operations (guided scheduling)
+
+**What happened**: Added `src/reconstruction_scheduler.py` and `tests/test_reconstruction_scheduler.py` test-first to run finite experiment queues from JSON plans. The scheduler executes explicit commands with timeouts, extracts the configured metric from the produced artifact, and writes append-only per-experiment logs plus a schedule summary under reconstruction analysis outputs.
+
+**Key decision**: We borrowed the keep/discard discipline from Andrej Karpathy's `autoresearch`, but not the autonomous code-edit loop. In this repository the scheduler should orchestrate immutable runs and analysis artifacts, not mutate the codebase on its own.
+
+**Verification**:
+- `pytest tests/test_reconstruction_scheduler.py -q --no-cov` passed
+- `ruff check src/reconstruction_scheduler.py tests/test_reconstruction_scheduler.py` passed
+
+**For Part 3**: This gives us a practical way to let tonight's or tomorrow's experiments run with less supervision while keeping every advancement decision tied to the saved measurement contract.
+
+### 2026-03-10 — Part 3 Phase 6: W&B Instrumentation for Scheduler and Analysis
+
+**Phase**: Part 3 — Phase 6 (observability and article synthesis)
+
+**What happened**: Added optional W&B instrumentation to `src/reconstruction_scheduler.py` and `src/reconstruction_analysis.py`, again test-first. The scheduler now logs one W&B run per planned experiment with run metadata, explicit keep/discard/failed decisions, extracted reconstruction metrics, and attached immutable scheduler/run artifacts. The analysis step now logs aggregate counts, failure-mode totals, run-summary tables, close-reading queues, and the generated summary/report/article-input artifacts.
+
+**Key decision**: The observability layer should remain operationally decoupled from execution. W&B is treated as a lens over the immutable filesystem contract, not as the source of truth. That keeps offline runs and future live runs on the same artifact path while still giving the research loop a usable comparison surface.
+
+**Why it matters for the article**: The third article needs more than scalar objectives. It needs traceable decisions, failure patterns, and concrete close-reading candidates. Logging those synthesis objects to W&B makes it easier to compare runs during drafting without replacing the underlying saved artifacts that support the article's claims.
+
+**Verification**:
+- `pytest tests/test_reconstruction_scheduler.py tests/test_reconstruction_analysis.py -q --no-cov` passed
+
+**For Part 3**: The implementation is now ready to observe real scheduled runs once the PR is merged, but it still does not start those runs yet. The repository has the instrumentation needed for disciplined comparison without broadening the claim into autonomous experimentation.
+
+### 2026-03-10 — Pre-Run External Review Gate
+
+**Phase**: Part 3 — Experiment Operations (pre-run review)
+
+**What happened**: Before allowing the scheduler to launch real experiments, we ran an external review pass with Gemini CLI and Claude Code CLI over the Phase 6 analysis/scheduler implementation. The most relevant findings were structural rather than algorithmic: protect scheduler immutability, make the scheduler-to-analysis handoff explicit, and document that plan files are trusted executable specs.
+
+**Changes made from review**:
+- schedule IDs are now immutable once results exist
+- scheduler summaries now retain kept/discarded/failed `run_id`s
+- Phase 6 analysis can now ingest `--schedule-summary-path` directly
+- scheduler trust-boundary language was added to the README
+
+**For Part 3**: The workflow is now closer to the standard we want before long-running runs begin: test-green, externally reviewed, and explicit about where operational automation starts and stops.

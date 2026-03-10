@@ -1,0 +1,45 @@
+{
+  "schedule_id": "guided-phase4-20260310a",
+  "experiments": [
+    {
+      "experiment_id": "baseline-dryrun-2iter",
+      "run_id": "phase4-guided-dryrun-20260310a",
+      "phase": "phase-4-prompt-baselines",
+      "command": [
+        ".venv/bin/python",
+        "src/reconstruction_baselines.py",
+        "--run-id",
+        "{run_id}",
+        "--dry-run",
+        "--max-cases",
+        "2",
+        "--max-iterations",
+        "2"
+      ],
+      "timeout_seconds": 1800,
+      "metric_path_template": "outputs/reconstruction/runs/{run_id}/prompt_baseline_summary.json",
+      "metric_key": "controls.style_shift.mean_weighted_objective",
+      "higher_is_better": true
+    },
+    {
+      "experiment_id": "baseline-dryrun-3iter",
+      "run_id": "phase4-guided-dryrun-20260310b",
+      "phase": "phase-4-prompt-baselines",
+      "command": [
+        ".venv/bin/python",
+        "src/reconstruction_baselines.py",
+        "--run-id",
+        "{run_id}",
+        "--dry-run",
+        "--max-cases",
+        "2",
+        "--max-iterations",
+        "3"
+      ],
+      "timeout_seconds": 1800,
+      "metric_path_template": "outputs/reconstruction/runs/{run_id}/prompt_baseline_summary.json",
+      "metric_key": "controls.style_shift.mean_weighted_objective",
+      "higher_is_better": true
+    }
+  ]
+}

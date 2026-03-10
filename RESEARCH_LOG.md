@@ -75,3 +75,54 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Experiment logging**: We will use Weights & Biases for experiment metadata and metrics when running real training. It is optional and defaults to offline mode; runs should only upload when we deliberately enable it.
 
 **Why this matters**: The scaffold forces every run to be reproducible and auditable before we spend GPU time, which keeps the operational decoupling claims grounded in saved artifacts instead of ad hoc training output.
+
+### 2026-03-10 — Phase 6 Analysis Contract Decisions
+
+**Decision**: Phase 6 starts by aggregating immutable Phase 4 run artifacts instead of inventing a separate notebook-only synthesis layer. The new analysis contract reads `prompt_baseline_cases.json` plus each run manifest, then emits a complete case table, explicit failure labels, source-side bias slices, and a close-reading queue with stable `run_id` links.
+
+**Failure taxonomy**: We are labeling only operationally defensible failure modes that are already present in the saved scoring contract: `semantic_drift`, `target_miss`, `length_guardrail`, `lexical_overlap`, and `stalled_revision`. No broader interpretive claim should be attached until the underlying runs exist in sufficient number.
+
+**First aggregation result**: Running the new analysis module against the saved Phase 4 dry run (`phase4-dry-run-20260309a`) produced a 2-case synthesis bundle. Both cases ended in `stalled_revision`, and one also carried `target_miss`. The highest dry-run objective was Borges -> Bolaño at `0.5807`; the weakest was Borges -> García Márquez at `0.5504`.
+
+**Why this matters**: This keeps Phase 6 operationally decoupled from ad hoc qualitative memory. The article-facing materials now derive from immutable run outputs, which means tomorrow's real training or live baselines can drop into the same synthesis path without rewriting the analysis layer.
+
+### 2026-03-10 — Guided Scheduler Decisions
+
+**Decision**: We are adding a finite guided scheduler, not an unconstrained autonomous loop. Each scheduled experiment is a fixed command with a timeout, an expected metric artifact, and an explicit advancement rule (`keep`, `discard`, or `failed`) based on the measured output.
+
+**Implementation**: `src/reconstruction_scheduler.py` reads a JSON plan, executes each command in order, extracts a dotted metric key from the produced artifact, and writes append-only per-experiment logs plus a schedule summary under `outputs/reconstruction/analysis/schedules/`.
+
+**Attribution**: The scheduler structure is explicitly inspired by Andrej Karpathy's `autoresearch` project, particularly its keep/discard experiment loop and emphasis on machine-readable experiment state. The current repository adopts that operational pattern only at the scheduling layer; it does not adopt autonomous code-editing or open-ended self-direction.
+
+**Why this matters**: This is the right adaptation of the `autoresearch` idea for the current repository. Our bottleneck is not code mutation; it is disciplined experiment execution against immutable run manifests and analysis artifacts. The scheduler therefore keeps the experimentation loop operationally decoupled from manual babysitting without broadening the claim into autonomous research.
+
+### 2026-03-10 — Phase 6 W&B Instrumentation Decisions
+
+**Decision**: W&B logging now sits on top of the scheduler and analysis layers rather than inside an ad hoc notebook or dashboard-only path. The logging remains optional and defaults to offline mode so observability does not become a hidden execution dependency.
+
+**Logging schema**:
+- Scheduler experiments log one W&B run per planned experiment with `schedule_id`, `experiment_id`, `run_id`, phase, command, timeout, metric selector, and explicit attribution to Andrej Karpathy's `autoresearch` as scheduler inspiration.
+- Each scheduler run logs the operational decision (`keep`, `discard`, `failed`), incumbent comparison context, execution duration, return code, the extracted reconstruction objective, and compact control-level summary metrics from the produced artifact.
+- Each scheduler run attaches the immutable local artifacts that matter for auditability: scheduler stdout/stderr/result logs plus any available run manifest, baseline summary, baseline cases, and baseline report.
+- Phase 6 analysis logs one aggregate W&B run with total runs/cases, failure-mode counts, a run-summary table, and the close-reading queue, then attaches the saved analysis summary, Markdown report, and article-input JSON.
+
+**Why these metrics and artifacts matter for the research loop**: The scheduler metrics let us compare candidate runs by the same saved advancement signal without rereading raw JSON by hand. The attached artifacts keep every keep/discard claim operationally anchored to immutable run products, which preserves auditability when we later inspect surprising results or failed runs.
+
+**Why they matter for Part 3**: The analysis-side W&B outputs capture exactly the synthesis objects the article needs: failure distributions, traceable per-run summaries, and a stable queue for close reading. That keeps the Part 3 narrative operationally decoupled from memory or dashboard screenshots because the narrative can be reconstructed from saved artifacts and logged tables.
+
+### 2026-03-10 — External Review Gate Before Experiments
+
+**Review sources**: Gemini CLI and Claude Code CLI were both asked to review the Phase 6 analysis and scheduler changes before any real experiment runs. The reviews were run in non-interactive mode against the current implementation surface rather than after results existed.
+
+**Adopted feedback**:
+- Added a scheduler immutability guard so reusing the same `schedule_id` now fails instead of overwriting prior schedule logs.
+- Extended scheduler summaries with kept/discarded/failed `run_id`s.
+- Added a direct scheduler-to-analysis handoff so `src/reconstruction_analysis.py` can aggregate kept runs from `--schedule-summary-path`.
+- Documented the trust boundary that scheduler plan files are executable specifications and must be treated as trusted input.
+
+**Deferred or declined feedback**:
+- We kept the current explicit failure taxonomy in Phase 6 because it is intentionally aligned to the present scoring contract; if new failure labels are added later, the taxonomy should be expanded deliberately rather than inferred implicitly.
+- We kept dotted metric resolution narrow in the scheduler because the current artifact contract is intentionally simple JSON; richer selectors can be added later if the metric artifacts actually require them.
+- We did not broaden the close-reading queue yet. For the current small-run state, best/worst salience is enough; this should be revisited once live runs produce a materially larger case table.
+
+**Why this matters**: The experiment gate is now not only test-green but externally reviewed before execution. That reduces the chance that the first scheduled live runs will expose avoidable workflow mistakes rather than genuine model behavior.
