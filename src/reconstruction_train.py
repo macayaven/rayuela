@@ -194,13 +194,34 @@ def build_training_examples(
     dataset_mode: str = DEFAULT_DATASET_MODE,
 ) -> list[TrainingExample]:
     """Build deterministic training examples aligned to the split manifest."""
+    if dataset_mode != DEFAULT_DATASET_MODE:
+        raise ValueError(
+            f"Unsupported dataset_mode {dataset_mode!r}; "
+            f"only {DEFAULT_DATASET_MODE!r} is currently implemented."
+        )
+
     assignment_lookup = split_manifest.assignment_lookup()
+    manifest_window_ids = set(assignment_lookup)
+    window_ids = {window.window_id for window in windows}
+    missing_window_ids = manifest_window_ids - window_ids
+    extra_window_ids = window_ids - manifest_window_ids
+    if missing_window_ids or extra_window_ids:
+        missing_sample = ", ".join(sorted(missing_window_ids)[:5])
+        extra_sample = ", ".join(sorted(extra_window_ids)[:5])
+        raise ValueError(
+            "Split manifest window IDs do not match extracted windows. "
+            f"missing={len(missing_window_ids)}"
+            f"{' [' + missing_sample + ']' if missing_sample else ''}, "
+            f"extra={len(extra_window_ids)}"
+            f"{' [' + extra_sample + ']' if extra_sample else ''}."
+        )
+
     default_envelope_id = target_envelopes[0].envelope_id if target_envelopes else "target:unknown"
     examples: list[TrainingExample] = []
     for window in windows:
         split = assignment_lookup[window.window_id]
         source_text = window.text
-        target_text = window.text if dataset_mode == "identity_smoke" else window.text
+        target_text = window.text
         examples.append(
             TrainingExample(
                 window_id=window.window_id,
@@ -245,8 +266,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     parser.add_argument("--dataset-mode", default=DEFAULT_DATASET_MODE)
     parser.add_argument("--seed", type=int, default=DEFAULT_RECONSTRUCTION_SEED)
-    parser.add_argument("--corpus-dir", type=Path, default=Path("data/corpus"))
-    parser.add_argument("--corpus-output-dir", type=Path, default=Path("outputs/corpus"))
+    parser.add_argument("--corpus-dir", type=Path, default=PROJECT_ROOT / "data" / "corpus")
+    parser.add_argument(
+        "--corpus-output-dir", type=Path, default=PROJECT_ROOT / "outputs" / "corpus"
+    )
     parser.add_argument("--split-manifest-path", type=Path, required=True)
     parser.add_argument("--target-envelopes-path", type=Path, required=True)
     parser.add_argument("--wandb-project", default=None)
@@ -290,6 +313,7 @@ def main(argv: list[str] | None = None) -> int:
         wandb_entity=args.wandb_entity,
         wandb_mode=args.wandb_mode,
     )
+    git_sha = detect_git_sha(paths.project_root)
 
     config_path = run_dir / "training_config.json"
     tokenizer_config_path = run_dir / "tokenizer_config.json"
@@ -312,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
 
     checkpoint_metadata = CheckpointMetadata(
         run_id=args.run_id,
-        git_sha=detect_git_sha(paths.project_root),
+        git_sha=git_sha,
         phase="phase-5-training-scaffold",
         model_id=args.model_id,
         adapter_type="qlora",
@@ -330,32 +354,42 @@ def main(argv: list[str] | None = None) -> int:
         phase="phase-5-training-scaffold",
         model_id=args.model_id,
         seed=args.seed,
-        git_sha=detect_git_sha(paths.project_root),
+        git_sha=git_sha,
         config_payload={
             "training_config_path": to_project_relative(config_path, paths.project_root),
             "checkpoint_metadata_path": to_project_relative(checkpoint_path, paths.project_root),
             "dataset_mode": args.dataset_mode,
         },
-        corpus_manifest="outputs/corpus/corpus_metadata.json",
+        corpus_manifest=to_project_relative(
+            args.corpus_output_dir / "corpus_metadata.json",
+            paths.project_root,
+        ),
         split_manifest=args.split_manifest_path,
         paths=paths,
     )
     write_run_manifest(run_manifest, paths=paths)
 
-    logger = build_experiment_logger(
-        config=training_config,
-        git_sha=detect_git_sha(paths.project_root),
-        split_counts=split_counts,
-    )
-    logger.log_metrics({"training_examples": float(len(examples))})
-    logger.finish()
-
-    finalize_run_manifest(
-        args.run_id,
-        RunStatus.COMPLETED,
-        paths=paths,
-        error_message=None,
-    )
+    run_status = RunStatus.COMPLETED
+    error_message: str | None = None
+    try:
+        logger = build_experiment_logger(
+            config=training_config,
+            git_sha=git_sha,
+            split_counts=split_counts,
+        )
+        logger.log_metrics({"training_examples": float(len(examples))})
+        logger.finish()
+    except Exception as exc:
+        run_status = RunStatus.FAILED
+        error_message = str(exc)
+        raise
+    finally:
+        finalize_run_manifest(
+            args.run_id,
+            run_status,
+            paths=paths,
+            error_message=error_message,
+        )
     return 0
 
 

@@ -266,21 +266,24 @@ def extract_windows(
         raise ValueError("word bounds must satisfy 0 < min_words <= max_words")
 
     if corpus_works is None:
-        available_works = {}
+        available_works: dict[str, tuple[str, str]] = {}
         for work_id, (author, title) in CORPUS_WORKS.items():
             if (corpus_dir / f"{work_id}_clean.json").exists():
                 available_works[work_id] = (author, title)
-        if available_works:
-            resolved_corpus_works = available_works
+        discovered_works: dict[str, tuple[str, str]] = {}
+        for path in sorted(corpus_dir.glob("*_clean.json")):
+            work_id = path.stem.replace("_clean", "")
+            if work_id in available_works:
+                continue
+            payload = _load_json(path)
+            discovered_works[work_id] = (
+                str(payload.get("author", "Unknown")),
+                str(payload.get("title", work_id)),
+            )
+        if available_works or discovered_works:
+            resolved_corpus_works = {**available_works, **discovered_works}
         else:
             resolved_corpus_works = {}
-            for path in sorted(corpus_dir.glob("*_clean.json")):
-                payload = _load_json(path)
-                work_id = path.stem.replace("_clean", "")
-                resolved_corpus_works[work_id] = (
-                    str(payload.get("author", "Unknown")),
-                    str(payload.get("title", work_id)),
-                )
     else:
         resolved_corpus_works = corpus_works
     stylometric_lookup = _segment_vector_lookup(
@@ -322,10 +325,7 @@ def extract_windows(
                 start_char = spans[word_start][0]
                 end_char = spans[word_end - 1][1]
                 window_text = text[start_char:end_char]
-                window_id = (
-                    f"{work_id}:ch{chapter_number}:w{window_index}:"
-                    f"{word_start}-{word_end}"
-                )
+                window_id = f"{work_id}:ch{chapter_number}:w{window_index}:{word_start}-{word_end}"
                 windows.append(
                     WindowRecord(
                         window_id=window_id,
@@ -349,6 +349,7 @@ def extract_windows(
     if not windows:
         raise ValueError("no eligible reconstruction windows were extracted")
     return windows
+
 
 def _window_token_set(text: str) -> frozenset[str]:
     """Return a normalized unique token set for near-duplicate checks."""
@@ -379,11 +380,7 @@ def _audit_leakage(
             issues.append(f"{segment_id}: chapter assigned to multiple splits {sorted(splits)}")
 
     token_sets = {window.window_id: _window_token_set(window.text) for window in windows}
-    token_frequency = Counter(
-        token
-        for token_set in token_sets.values()
-        for token in token_set
-    )
+    token_frequency = Counter(token for token_set in token_sets.values() for token in token_set)
     ordered_tokens = {
         window.window_id: tuple(
             sorted(
@@ -538,8 +535,7 @@ def build_target_envelopes(
             segment_representatives.setdefault(window.segment_id, window)
 
         reference_windows = [
-            segment_representatives[segment_id]
-            for segment_id in sorted(segment_representatives)
+            segment_representatives[segment_id] for segment_id in sorted(segment_representatives)
         ]
         stylometric_names = list(reference_windows[0].stylometric_reference)
         semantic_names = list(reference_windows[0].semantic_reference)

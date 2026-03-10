@@ -244,12 +244,7 @@ def test_model_config_is_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     )
 
     config_path = (
-        tmp_path
-        / "outputs"
-        / "reconstruction"
-        / "runs"
-        / "phase5-smoke"
-        / "training_config.json"
+        tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-smoke" / "training_config.json"
     )
     payload = json.loads(config_path.read_text(encoding="utf-8"))
 
