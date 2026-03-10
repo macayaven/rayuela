@@ -249,6 +249,53 @@ def test_split_manifest_has_no_leakage(tmp_path: Path) -> None:
     assert sum(split_manifest.split_counts.values()) == len(split_manifest.assignments)
 
 
+def test_split_manifest_records_configured_word_bounds() -> None:
+    windows = [
+        reconstruction_dataset.WindowRecord(
+            window_id="alpha:1:w0",
+            work_id="alpha",
+            author="Author A",
+            title="Alpha",
+            chapter_number=1,
+            segment_id="alpha:1",
+            chapter_word_count=4,
+            word_start=0,
+            word_end=4,
+            word_count=4,
+            text="uno dos tres cuatro",
+            stylometric_reference={"sent_len_mean": 1.0},
+            semantic_reference={"metafiction": 2.0},
+        ),
+        reconstruction_dataset.WindowRecord(
+            window_id="beta:1:w0",
+            work_id="beta",
+            author="Author B",
+            title="Beta",
+            chapter_number=1,
+            segment_id="beta:1",
+            chapter_word_count=4,
+            word_start=0,
+            word_end=4,
+            word_count=4,
+            text="cinco seis siete ocho",
+            stylometric_reference={"sent_len_mean": 3.0},
+            semantic_reference={"metafiction": 4.0},
+        ),
+    ]
+
+    split_manifest = reconstruction_dataset.build_split_manifest(
+        windows,
+        seed=7,
+        min_words=4,
+        max_words=5,
+        train_ratio=0.34,
+        val_ratio=0.33,
+    )
+
+    assert split_manifest.min_words == 4
+    assert split_manifest.max_words == 5
+
+
 def test_near_duplicate_leakage_is_reported() -> None:
     windows = [
         reconstruction_dataset.WindowRecord(
@@ -385,4 +432,6 @@ def test_main_writes_pilot_artifacts(
     assert len(source_windows["source_windows"]) == 3
     assert len(target_envelopes["target_envelopes"]) == 1
     assert split_manifest["split_counts"] == {"train": 4, "val": 4, "test": 4}
+    assert split_manifest["min_words"] == 4
+    assert split_manifest["max_words"] == 5
     assert success_criteria["claim_language"] == "operational_decoupling"

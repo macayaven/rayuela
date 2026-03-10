@@ -17,7 +17,7 @@ This workspace is already well past the planning stage. The analysis code and ar
 - The project currently works across four analysis scales: holistic embeddings (A), content-light stylometrics (A'), LLM-perceived style (B'), and narrative DNA semantics (B).
 - The validated semantic instrument is currently 19-dimensional. `temporal_clarity` was excluded after inter-rater replication with Nemotron 70B showed a rubric polarity failure.
 - The two long-form article sources live at [`ARTICLE_PART1_MEDIUM.md`](ARTICLE_PART1_MEDIUM.md) and [`ARTICLE_PART2_MEDIUM.md`](ARTICLE_PART2_MEDIUM.md).
-- Interactive Plotly outputs are generated locally into `docs/` and `outputs/figures/` when needed.
+- Interactive Plotly outputs are generated locally into `outputs/figures/`, and the published GitHub Pages bundle is tracked in `docs/`.
 - Phase 8 work extends the same methodology to a 10-work Latin American comparison corpus stored in the local `data/corpus/` working tree.
 
 ## Main Findings Captured In The Repo
@@ -40,14 +40,15 @@ This workspace is already well past the planning stage. The analysis code and ar
 - [`scripts/`](scripts/): article export, deployment, monitoring, EPUB/PDF parsing, and corpus utility scripts.
 - `data/`: local-only source texts, parsed `Rayuela` JSON, calibration passages, and the raw/clean comparison corpus.
 - `outputs/`: local-only embeddings, semantic and stylistic vectors, audits, review notes, summary JSON, and figure HTML.
-- `docs/`: local-only publishing bundle generated from `outputs/figures/`.
+- `docs/`: published GitHub Pages bundle generated from `outputs/figures/`.
 - `article_images/`: local-only PNG exports referenced by the root article markdown.
 - [`prompts/`](prompts/): prompt templates for semantic and stylistic extraction, plus article review prompts.
 - [`notebooks/`](notebooks/): reserved notebook area; currently empty in this checkout.
 
 ## Local-Only Asset Policy
 
-- `data/`, `outputs/`, `docs/`, `article_images/`, and the root `ARTICLE_PART*_MEDIUM.html` exports are working artifacts and are intentionally ignored by git.
+- `data/`, `outputs/`, `article_images/`, and the root `ARTICLE_PART*_MEDIUM.html` exports are working artifacts and are intentionally ignored by git.
+- `docs/` remains versioned because the current custom-domain GitHub Pages site publishes from `main:/docs`.
 - Keep copyrighted corpus material and regenerated publishing bundles in your own local storage.
 - Use the source markdown and the helper scripts in this repo to regenerate local artifacts when needed.
 

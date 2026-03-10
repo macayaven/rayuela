@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Rayuela — Interactive Visualizations</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, sans-serif;
+      background: #fafafa;
+      color: #333;
+      line-height: 1.6;
+      padding: 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-family: 'Merriweather', Georgia, serif;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #1a1a1a;
+    }
+    .subtitle {
+      font-size: 1.1rem;
+      color: #666;
+      margin-bottom: 2rem;
+    }
+    .intro {
+      font-size: 1rem;
+      color: #555;
+      margin-bottom: 2rem;
+      border-left: 3px solid #2196F3;
+      padding-left: 1rem;
+    }
+    h2 {
+      font-size: 1.3rem;
+      color: #1a1a1a;
+      margin: 2rem 0 1rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 2px solid #eee;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      display: block;
+      padding: 1.2rem;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #333;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .card:hover {
+      border-color: #2196F3;
+      box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+      transform: translateY(-1px);
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid #eee;
+      font-size: 0.85rem;
+      color: #999;
+    }
+    footer a { color: #666; }
+  </style>
+</head>
+<body>
+
+<h1>What Does a Novel Look Like From the Inside?</h1>
+<p class="subtitle">Interactive Visualizations for the Computational Analysis of Cortázar's <em>Rayuela</em></p>
+
+<p class="intro">
+  These interactive charts accompany our article on using AI to map the hidden structure of
+  Julio Cortázar's <em>Rayuela</em> (1963). Each visualization is built with Plotly and is
+  fully interactive: hover for details, drag to pan, scroll to zoom, and click legend items
+  to toggle layers. 3D charts can be orbited by dragging.
+</p>
+
+<h2>Article Figures</h2>
+<div class="grid">
+      <a href="article_permutation.html" class="card">Permutation</a>
+      <a href="article_smoothness.html" class="card">Smoothness</a>
+      <a href="article_weaving.html" class="card">Weaving</a>
+      <a href="article_journey.html" class="card">Journey</a>
+      <a href="article_heatmap.html" class="card">Heatmap</a>
+      <a href="article_radar.html" class="card">Radar</a>
+      <a href="article_dual_heatmap.html" class="card">Dual Heatmap</a>
+      <a href="article_dual.html" class="card">Dual</a>
+      <a href="article_sections.html" class="card">Sections</a>
+      <a href="article_correlation.html" class="card">Correlation</a>
+</div>
+
+<h2>UMAP Projections</h2>
+<div class="grid">
+      <a href="umap_comparison.html" class="card">Umap: Comparison</a>
+      <a href="umap_scale_a.html" class="card">Umap: Scale A</a>
+      <a href="umap_scale_b.html" class="card">Umap: Scale B</a>
+</div>
+
+<h2>3D Explorations</h2>
+<div class="grid">
+      <a href="3d_scale_a.html" class="card">3D: Scale A</a>
+      <a href="3d_scale_b_full.html" class="card">3D: Scale B Full</a>
+      <a href="3d_scale_b_top8var.html" class="card">3D: Scale B Top8Var</a>
+      <a href="3d_scale_b_pca5.html" class="card">3D: Scale B Pca5</a>
+      <a href="3d_scale_b_pca8.html" class="card">3D: Scale B Pca8</a>
+      <a href="3d_scale_b_decorr.html" class="card">3D: Scale B Decorr</a>
+</div>
+
+<footer>
+  Carlos Crespo Macaya &amp; Claude &middot; 2026 &middot;
+  <a href="https://github.com/macayaven/rayuela">Source Code</a>
+</footer>
+
+</body>
+</html>

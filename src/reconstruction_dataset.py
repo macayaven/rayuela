@@ -443,6 +443,8 @@ def build_split_manifest(
     windows: list[WindowRecord],
     *,
     seed: int = DEFAULT_RECONSTRUCTION_SEED,
+    min_words: int | None = None,
+    max_words: int | None = None,
     train_ratio: float = 0.7,
     val_ratio: float = 0.15,
     near_duplicate_threshold: float = 0.95,
@@ -492,8 +494,8 @@ def build_split_manifest(
     return SplitManifest(
         generated_at=utc_now(),
         seed=seed,
-        min_words=min(window.word_count for window in windows),
-        max_words=max(window.word_count for window in windows),
+        min_words=min(window.word_count for window in windows) if min_words is None else min_words,
+        max_words=max(window.word_count for window in windows) if max_words is None else max_words,
         train_ratio=train_ratio,
         val_ratio=val_ratio,
         total_windows=len(windows),
@@ -705,6 +707,8 @@ def main(argv: list[str] | None = None) -> int:
     split_manifest = build_split_manifest(
         windows,
         seed=args.seed,
+        min_words=args.min_words,
+        max_words=args.max_words,
         train_ratio=args.train_ratio,
         val_ratio=args.val_ratio,
         near_duplicate_threshold=args.near_duplicate_threshold,
