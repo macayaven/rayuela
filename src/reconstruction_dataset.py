@@ -333,17 +333,6 @@ def extract_windows(
         raise ValueError("no eligible reconstruction windows were extracted")
     return windows
 
-
-def _token_jaccard(left_text: str, right_text: str) -> float:
-    """Return token-set Jaccard overlap for near-duplicate checks."""
-    left = set(re.findall(r"\w+", left_text.lower(), flags=re.UNICODE))
-    right = set(re.findall(r"\w+", right_text.lower(), flags=re.UNICODE))
-    union = left | right
-    if not union:
-        return 1.0
-    return float(len(left & right) / len(union))
-
-
 def _window_token_set(text: str) -> frozenset[str]:
     """Return a normalized unique token set for near-duplicate checks."""
     return frozenset(re.findall(r"\w+", text.lower(), flags=re.UNICODE))

@@ -55,11 +55,11 @@ def run_semantic(work_id: str, model: str, prompt: str) -> bool:
     # Check if already extracted
     json_path = output_dir / "narrative_dna.json"
     if json_path.exists():
-        with open(json_path) as f:
+        with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
         existing = len(data.get("chapters", []))
         # Load expected count
-        with open(input_path) as f:
+        with open(input_path, encoding="utf-8") as f:
             expected = len(json.load(f)["chapters"])
         if existing >= expected:
             print(f"  SKIP: {json_path} already has {existing}/{expected} chapters")

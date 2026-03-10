@@ -40,7 +40,7 @@ STYLOMETRICS_SCRIPT = PROJECT_ROOT / "src" / "stylometrics.py"
 
 def _load_expected_chapter_count(input_path: Path) -> int:
     """Return the cleaned chapter count for one corpus work."""
-    with open(input_path) as f:
+    with open(input_path, encoding="utf-8") as f:
         return len(json.load(f)["chapters"])
 
 
@@ -61,7 +61,7 @@ def run_stylometrics(work_id: str) -> bool:
         existing_rows = int(np.load(npy_path).shape[0])
         metadata_rows = None
         if meta_path.exists():
-            with open(meta_path) as f:
+            with open(meta_path, encoding="utf-8") as f:
                 metadata_rows = int(json.load(f)["n_chapters"])
 
         if existing_rows == expected and metadata_rows == expected:
@@ -109,7 +109,7 @@ def compute_author_profiles(include_rayuela: bool = False) -> dict:
     for work_id in CORPUS_WORKS:
         meta_path = CORPUS_OUTPUT_DIR / work_id / "chapter_stylometrics_metadata.json"
         if meta_path.exists():
-            with open(meta_path) as f:
+            with open(meta_path, encoding="utf-8") as f:
                 feature_names = json.load(f)["feature_names"]
             break
 
