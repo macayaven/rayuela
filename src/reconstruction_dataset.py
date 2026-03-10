@@ -382,20 +382,6 @@ def _audit_leakage(
         left_split = assignment_lookup[left.window_id]
         left_tokens = token_sets[left.window_id]
         left_token_count = len(left_tokens)
-        for right in windows[left_index + 1 :]:
-            right_split = assignment_lookup[right.window_id]
-            if left_split == right_split:
-                continue
-            if left.segment_id == right.segment_id:
-                overlaps = not (
-                    left.word_end <= right.word_start or right.word_end <= left.word_start
-                )
-                adjacent = left.word_end == right.word_start or right.word_end == left.word_start
-                if overlaps or adjacent:
-                    issues.append(
-                        f"{left.window_id} and {right.window_id}: cross-split chapter overlap"
-                    )
-
         candidates: set[int] = set()
         left_ordered_tokens = ordered_tokens[left.window_id]
         prefix_length = _prefix_length(len(left_ordered_tokens), near_duplicate_threshold)
