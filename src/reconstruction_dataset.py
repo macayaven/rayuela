@@ -265,7 +265,24 @@ def extract_windows(
     if min_words <= 0 or max_words < min_words:
         raise ValueError("word bounds must satisfy 0 < min_words <= max_words")
 
-    resolved_corpus_works = CORPUS_WORKS if corpus_works is None else corpus_works
+    if corpus_works is None:
+        available_works = {}
+        for work_id, (author, title) in CORPUS_WORKS.items():
+            if (corpus_dir / f"{work_id}_clean.json").exists():
+                available_works[work_id] = (author, title)
+        if available_works:
+            resolved_corpus_works = available_works
+        else:
+            resolved_corpus_works = {}
+            for path in sorted(corpus_dir.glob("*_clean.json")):
+                payload = _load_json(path)
+                work_id = path.stem.replace("_clean", "")
+                resolved_corpus_works[work_id] = (
+                    str(payload.get("author", "Unknown")),
+                    str(payload.get("title", work_id)),
+                )
+    else:
+        resolved_corpus_works = corpus_works
     stylometric_lookup = _segment_vector_lookup(
         load_stylometric_measurements(
             corpus_dir=corpus_dir,

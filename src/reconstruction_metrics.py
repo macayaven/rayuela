@@ -233,6 +233,14 @@ class ToleranceConfig:
     stylistic_preservation_max: float = 0.75
     stylistic_target_max: float = 0.75
 
+    def to_dict(self) -> dict[str, float]:
+        """Return a JSON-serializable representation."""
+        return {
+            "semantic_preservation_max": self.semantic_preservation_max,
+            "stylistic_preservation_max": self.stylistic_preservation_max,
+            "stylistic_target_max": self.stylistic_target_max,
+        }
+
 
 @dataclass(frozen=True)
 class LexicalControls:
