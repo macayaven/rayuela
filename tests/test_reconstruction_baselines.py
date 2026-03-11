@@ -144,10 +144,10 @@ def test_prompt_generation_returns_traceable_output() -> None:
         max_iterations=1,
     )
 
-    assert result.prompt_template_id == "style_shift_v1"
+    assert result.prompt_template_id == "style_shift_v2"
     assert result.used_training_examples is False
     assert len(result.iterations) == 1
-    assert result.iterations[0].template_id == "style_shift_v1"
+    assert result.iterations[0].template_id == "style_shift_v2"
     assert result.iterations[0].raw_response == "respuesta candidata"
     assert result.iterations[0].parsed_text == "respuesta candidata"
     assert result.iterations[0].score_history["weighted_objective"] > 0.0
@@ -187,11 +187,11 @@ def test_load_target_envelopes_restores_tuple_provenance(tmp_path: Path) -> None
 def test_iteration_history_is_saved(tmp_path: Path) -> None:
     result = reconstruction_baselines.BaselineCaseResult(
         case=_baseline_case(),
-        prompt_template_id="style_shift_v1",
+        prompt_template_id="style_shift_v2",
         iterations=(
             reconstruction_baselines.IterationRecord(
                 iteration_index=0,
-                template_id="style_shift_v1",
+                template_id="style_shift_v2",
                 system_prompt="system",
                 user_prompt="user",
                 raw_response="raw one",
@@ -215,7 +215,7 @@ def test_iteration_history_is_saved(tmp_path: Path) -> None:
             ),
             reconstruction_baselines.IterationRecord(
                 iteration_index=1,
-                template_id="revise_v1",
+                template_id="revise_v2",
                 system_prompt="system",
                 user_prompt="revise",
                 raw_response="raw two",
@@ -424,7 +424,7 @@ def test_openai_prompt_backend_passes_seed_to_chat_completion(
             case_id="case-1",
             control_mode="style_shift",
             iteration_index=0,
-            template_id="style_shift_v1",
+            template_id="style_shift_v2",
             source_window_id="source:1",
             target_envelope_id="target:1",
             system_prompt="system",
@@ -496,7 +496,7 @@ def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
             case_id="case-1",
             control_mode="style_shift",
             iteration_index=0,
-            template_id="style_shift_v1",
+            template_id="style_shift_v2",
             source_window_id="source:1",
             target_envelope_id="target:1",
             system_prompt="system",
@@ -555,7 +555,7 @@ def test_openai_prompt_backend_fails_when_reasoning_exists_without_final_content
                 case_id="case-1",
                 control_mode="style_shift",
                 iteration_index=0,
-                template_id="style_shift_v1",
+                template_id="style_shift_v2",
                 source_window_id="source:1",
                 target_envelope_id="target:1",
                 system_prompt="system",
@@ -681,3 +681,17 @@ def test_parse_generated_text_strips_leading_think_block() -> None:
     )
 
     assert parsed == "Texto final."
+
+
+def test_default_prompt_templates_tighten_visible_output_contract() -> None:
+    templates = reconstruction_baselines.default_prompt_templates()
+
+    style_shift = templates["style_shift"]
+    revise = templates["revise"]
+
+    assert style_shift.template_id == "style_shift_v2"
+    assert revise.template_id == "revise_v2"
+    assert "Think silently" in style_shift.system_prompt
+    assert "first visible character" in style_shift.system_prompt
+    assert "Return exactly one rewritten passage" in style_shift.user_prompt
+    assert "Think silently" in revise.system_prompt

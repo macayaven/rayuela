@@ -483,3 +483,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: Hidden reasoning has to be handled across the whole experiment surface, not only in the saved rewrite. The semantic evaluator now gets its own explicit token budget and the same parser-aware final-content extraction logic as the prompt generator.
 
 **For Part 3**: This sharpens the narrative around failure attribution. A batch that dies because the evaluator never received final JSON should not be read as evidence that the rewrite was semantically bad. It is an execution-contract failure, and the article can now say that more honestly.
+
+### 2026-03-11 — Part 3 Follow-Up: Prompt Tightening Before Model Switching
+
+**Phase**: Part 3 — Phase 4 prompt-contract refinement
+
+**What happened**: After the first clean launchcheck from `main`, the next blocker was not semantic parsing anymore. Qwen still spent the full visible-generation budget in hidden reasoning and never emitted a final passage. Instead of immediately switching to Nemotron or adding model/judge decoupling, we tightened the rewrite prompt contract and versioned it honestly.
+
+**Key decision**: The new `style_shift_v2` / `revise_v2` templates keep hidden reasoning enabled but explicitly require the visible answer to begin with the passage itself and forbid labels, headings, markdown, XML tags, quotes, or explanation text. This is the cheapest plausible fix, so it should be tried before broadening the model surface.
+
+**For Part 3**: This helps the story stay clean. If the tightened prompt works, we can say the failure mode was still mostly contractual. If it does not, then a later model pivot or generation/measurement decoupling will be easier to justify.

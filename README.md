@@ -270,6 +270,10 @@ The same parser edge applies to the semantic evaluator. Phase 4 now also exposes
 `--semantic-generation-max-tokens`, forwards that budget into the structured semantic-extraction
 calls, and fails fast if the evaluator receives hidden reasoning without the final JSON payload.
 
+The default rewrite templates are now `style_shift_v2` / `revise_v2`. They keep hidden reasoning
+enabled but tighten the visible-output contract by explicitly requiring the first visible character
+to belong to the passage itself, with no headings, labels, markdown, or explanatory text.
+
 Primary outputs:
 
 - `outputs/reconstruction/runs/<run_id>/prompt_baseline_cases.json`

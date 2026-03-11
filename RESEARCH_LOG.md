@@ -184,3 +184,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: `src/semantic_extraction.py` now uses the same parser-aware message-content helper as the prompt generator. It accepts an explicit `max_tokens` budget, defaults that budget higher under the Qwen reasoning parser, and raises a clear error when the model returns reasoning without final JSON. `src/reconstruction_baselines.py` now exposes `--semantic-generation-max-tokens` and records it in the run manifest so the measurement budget is part of the saved experiment contract.
 
 **Why this matters**: The failed hidden-reasoning run showed that fixing only the rewrite generator was not enough. The evaluator can also starve before it emits structured output. Making that budget explicit closes a real gap in the methodology and avoids wasting GPU time on retries that can never yield a score.
+
+### 2026-03-11 — Prompt Contract Tightening for Hidden Reasoning
+
+**Decision**: Before swapping models or adding more orchestration complexity, we should try a narrower intervention: keep Qwen as the active lane but tighten the visible-output contract in the rewrite prompts. That is cheaper and more interpretable than immediately pivoting to a different model family.
+
+**Implementation**: The default rewrite templates are now versioned as `style_shift_v2` and `revise_v2`. They explicitly tell the model to think silently, keep reasoning private, and begin the visible answer immediately with the rewritten passage itself, with no labels, markdown, XML tags, quotes, or explanatory text. The Phase 4 manifest now records the new template ID instead of silently reusing the old `v1` label.
+
+**Why this matters**: This is the lowest-complexity change that could plausibly fix the current blocker. If it works, we keep the research lane simple and move toward the fine-tuning prerequisites faster. If it fails, we will know the remaining problem is not just sloppy prompt contract wording.

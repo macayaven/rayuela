@@ -414,18 +414,23 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
     """Return the versioned Phase 4 prompt templates."""
     return {
         "style_shift": PromptTemplate(
-            template_id="style_shift_v1",
+            template_id="style_shift_v2",
             system_prompt=(
-                "You rewrite literary prose in Spanish. Preserve the scene, narrative facts, "
-                "and semantic content, but move the prose toward the requested stylistic "
-                "envelope. Do not explain your choices. Output only the rewritten passage."
+                "You rewrite literary prose in Spanish. Think silently and keep your reasoning "
+                "private. Preserve the scene, narrative facts, and semantic content, but move "
+                "the prose toward the requested stylistic envelope. The first visible character "
+                "of your answer must be the first character of the rewritten passage. Do not "
+                "output headings, labels, markdown, XML tags, quotes, or explanations. Output "
+                "only the rewritten passage."
             ),
             user_prompt=(
                 "Source passage:\n{source_text}\n\n"
                 "Target work: {target_title} by {target_author}\n"
                 "Target style cues:\n{style_summary}\n\n"
                 "Rewrite the source passage in Spanish so that it preserves content while "
-                "moving toward the target style envelope. Keep the output close in length."
+                "moving toward the target style envelope. Keep the output close in length. "
+                "Return exactly one rewritten passage and begin immediately with the passage "
+                "itself."
             ),
         ),
         "identity": PromptTemplate(
@@ -451,11 +456,13 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
             ),
         ),
         "revise": PromptTemplate(
-            template_id="revise_v1",
+            template_id="revise_v2",
             system_prompt=(
-                "You revise a prior rewrite in Spanish. Preserve semantic content, improve the "
-                "target style fit, and respect the requested length guardrails. Output only the "
-                "revised passage."
+                "You revise a prior rewrite in Spanish. Think silently and keep your reasoning "
+                "private. Preserve semantic content, improve the target style fit, and respect "
+                "the requested length guardrails. The first visible character of your answer "
+                "must be the first character of the revised passage. Output only the revised "
+                "passage."
             ),
             user_prompt=(
                 "Original source passage:\n{source_text}\n\n"
@@ -464,7 +471,8 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
                 "Target style cues:\n{style_summary}\n\n"
                 "Current score feedback:\n{feedback}\n\n"
                 "Revise the current rewrite to improve the weighted objective while preserving "
-                "the scene and staying close in length."
+                "the scene and staying close in length. Return exactly one revised passage and "
+                "begin immediately with the passage itself."
             ),
         ),
     }
@@ -963,7 +971,7 @@ def main(argv: list[str] | None = None) -> int:
         git_sha=detect_git_sha(paths.project_root),
         config_payload=config_payload,
         corpus_manifest="outputs/corpus/corpus_metadata.json",
-        prompt_template_id="style_shift_v1",
+        prompt_template_id=default_prompt_templates()["style_shift"].template_id,
         split_manifest=args.split_manifest_path,
         paths=paths,
     )
