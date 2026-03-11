@@ -257,8 +257,14 @@ python3 src/reconstruction_baselines.py --run-id phase4-dry-run --dry-run --max-
 If the serving stack is exposing parser-separated reasoning, record that expectation in the run config:
 
 ```bash
-python3 src/reconstruction_baselines.py --run-id phase4-live-parser-check --max-cases 2 --reasoning-parser qwen3
+python3 src/reconstruction_baselines.py --run-id phase4-live-parser-check --max-cases 2 --reasoning-parser qwen3 --generation-max-tokens 2048
 ```
+
+`--generation-max-tokens` is now a first-class experiment parameter. When Qwen reasoning is
+kept enabled behind `--reasoning-parser qwen3`, the model may consume a large fraction of the
+budget in hidden reasoning before it emits final `content`. Phase 4 therefore records the token
+budget in the run manifest and now fails fast if the serving stack returns reasoning without a
+final passage, instead of silently scoring an empty rewrite.
 
 Primary outputs:
 

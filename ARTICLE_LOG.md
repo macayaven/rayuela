@@ -463,3 +463,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: Hidden reasoning is the right target, not zero reasoning. The research loop cares about whether the final passage is usable and scoreable, not whether the model internally reasons. That distinction matters for the later fine-tuning story too: the desired artifact is a clean rewrite, not a silenced model.
 
 **For Part 3**: This gives the narrative a sharper methodological point. The problem exposed by the overnight runs was not “the model thinks too much”; it was “the experiment artifact contains the thinking instead of only the passage.” Fixing that is a better story and a better experimental knob.
+
+### 2026-03-11 — Part 3 Follow-Up: Generation Budget as a First-Class Knob
+
+**Phase**: Part 3 — Phase 4 runtime robustness
+
+**What happened**: After probing the parser-enabled Qwen service directly, we found the operational edge case behind hidden reasoning: the model can spend a substantial share of the completion budget in the reasoning channel before it emits the final passage. Phase 4 now exposes `--generation-max-tokens`, records it in the run manifest, and fails fast if the backend returns reasoning but no final `content`.
+
+**Key decision**: Token budget is now treated as part of the research contract, not as an invisible transport detail. If the model reasons internally, the experiment has to budget enough room for both the hidden reasoning and the final literary passage.
+
+**For Part 3**: This matters because the article should not describe empty or truncated rewrites as if they were literary failures. Some of them are really execution-contract failures. Making the budget explicit helps separate “bad rewrite” from “never reached final answer,” which is a much cleaner story.

@@ -248,7 +248,20 @@ class OpenAIPromptBackend:
             max_tokens=self._max_tokens,
             seed=self._seed,
         )
-        return response.choices[0].message.content or ""
+        message = response.choices[0].message
+        content = message.content or ""
+        reasoning = getattr(message, "reasoning_content", None) or getattr(
+            message,
+            "reasoning",
+            None,
+        )
+        if not content.strip() and isinstance(reasoning, str) and reasoning.strip():
+            raise RuntimeError(
+                "model returned reasoning without final content "
+                f"for case {request.case_id} iteration {request.iteration_index}; "
+                "increase --generation-max-tokens or tighten the output contract"
+            )
+        return content
 
 
 class DryRunPromptBackend:
@@ -897,6 +910,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-base", default=VLLM_API_BASE)
     parser.add_argument("--model", default=DEFAULT_MODEL_NAME)
     parser.add_argument(
+        "--generation-max-tokens",
+        type=int,
+        default=768,
+        help="Maximum completion tokens allowed for each prompt-generation call.",
+    )
+    parser.add_argument(
         "--reasoning-parser",
         default=None,
         help="Optional reasoning parser configured on the serving stack, e.g. qwen3.",
@@ -929,6 +948,7 @@ def main(argv: list[str] | None = None) -> int:
         "dry_run": args.dry_run,
         "api_base": args.api_base,
         "model": args.model,
+        "generation_max_tokens": args.generation_max_tokens,
         "reasoning_parser": args.reasoning_parser,
     }
     manifest = build_run_manifest(
@@ -967,6 +987,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_backend = OpenAIPromptBackend(
                 api_base=args.api_base,
                 model=args.model,
+                max_tokens=args.generation_max_tokens,
                 seed=args.seed,
             )
             measurement_backend = CorpusMeasurementBackend(

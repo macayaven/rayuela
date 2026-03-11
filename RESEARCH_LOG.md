@@ -168,3 +168,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: The tracked Qwen vLLM service now enables `--reasoning-parser qwen3`, and Phase 4 run configs can record `--reasoning-parser qwen3` in their manifest payload. `parse_generated_text()` also strips leading `<think>...</think>` blocks when a server returns them inline instead of through a separated reasoning channel.
 
 **Why this matters**: This is the right experimental control for the current problem. The objective is not to make the model shallower; it is to stop visible reasoning text from contaminating the rewrite artifact and the downstream score. That keeps the experiment closer to the later fine-tuning target, which will also care about final passage quality rather than exposed chain-of-thought.
+
+### 2026-03-11 — Generation Budget Guard for Hidden-Reasoning Runs
+
+**Decision**: The completion token budget for Phase 4 live generation is now an explicit experiment parameter rather than an implicit backend default. Hidden reasoning only helps if the model still reaches a final passage inside the same response.
+
+**Implementation**: `src/reconstruction_baselines.py` now exposes `--generation-max-tokens`, records it in the immutable run manifest, and forwards it into the live prompt backend. The OpenAI-compatible path also now fails fast when the serving stack returns a non-empty reasoning channel but no final `content`, with an error that points directly to the generation-budget/output-contract problem.
+
+**Why this matters**: This improves research throughput and result quality at the same time. We stop wasting GPU time on runs that would only score empty candidates, and we make future seeded comparisons auditable because the token budget is part of the saved experiment contract instead of a hidden default.

@@ -508,6 +508,76 @@ def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
     assert content == "respuesta final"
 
 
+def test_openai_prompt_backend_fails_when_reasoning_exists_without_final_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Completions:
+        @staticmethod
+        def create(**kwargs: object) -> object:
+            del kwargs
+            return type(
+                "_Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "_Choice",
+                            (),
+                            {
+                                "message": type(
+                                    "_Message",
+                                    (),
+                                    {
+                                        "content": "  ",
+                                        "reasoning": "Thinking Process: razonamiento",
+                                    },
+                                )()
+                            },
+                        )()
+                    ]
+                },
+            )()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        def __init__(self, *, base_url: str, api_key: str) -> None:
+            del base_url, api_key
+            self.chat = _Chat()
+
+    monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
+    backend = reconstruction_baselines.OpenAIPromptBackend(max_tokens=256)
+
+    with pytest.raises(RuntimeError, match="returned reasoning without final content"):
+        backend.generate(
+            reconstruction_baselines.PromptRequest(
+                case_id="case-1",
+                control_mode="style_shift",
+                iteration_index=0,
+                template_id="style_shift_v1",
+                source_window_id="source:1",
+                target_envelope_id="target:1",
+                system_prompt="system",
+                user_prompt="user",
+                metadata={},
+            )
+        )
+
+
+def test_build_argument_parser_exposes_generation_max_tokens() -> None:
+    args = reconstruction_baselines.build_argument_parser().parse_args(
+        [
+            "--run-id",
+            "phase4-test",
+            "--generation-max-tokens",
+            "2048",
+        ]
+    )
+
+    assert args.generation_max_tokens == 2048
+
+
 def test_parse_generated_text_strips_leading_think_block() -> None:
     parsed = reconstruction_baselines.parse_generated_text(
         "<think>razono internamente</think>\n\nTexto final."
