@@ -100,15 +100,27 @@ def _make_result(
 def _write_run(run_dir: Path, *, run_id: str, results: list[dict[str, Any]]) -> Path:
     target_dir = run_dir / run_id
     target_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "run_id": run_id,
+        "phase": "phase-4-prompt-baselines",
+        "status": "completed",
+        "git_sha": "cf10ac5c86256aceb8b82e8f78483f7797c15d24",
+        "model_id": "Qwen/Qwen3.5-27B-FP8",
+        "prompt_template_id": "style_shift_v1",
+        "corpus_manifest": "outputs/corpus/corpus_metadata.json",
+        "split_manifest": "outputs/reconstruction/pilots/split_manifest.json",
+        "config_payload": {
+            "generation_seed": 42,
+            "api_base": "http://localhost:8000/v1",
+            "max_cases": 6,
+            "max_iterations": 2,
+            "source_windows_path": "outputs/reconstruction/pilots/source_windows.json",
+            "success_criteria_path": "outputs/reconstruction/pilots/success_criteria.json",
+            "target_envelopes_path": "outputs/reconstruction/pilots/target_envelopes.json",
+        },
+    }
     (target_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "run_id": run_id,
-                "phase": "phase-4-prompt-baselines",
-                "status": "completed",
-            }
-        )
-        + "\n",
+        json.dumps(manifest) + "\n",
         encoding="utf-8",
     )
     (target_dir / "prompt_baseline_cases.json").write_text(
@@ -116,6 +128,17 @@ def _write_run(run_dir: Path, *, run_id: str, results: list[dict[str, Any]]) -> 
         encoding="utf-8",
     )
     return target_dir
+
+
+def test_run_provenance_graceful_when_manifest_is_missing(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "orphan-run"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    provenance = reconstruction_analysis._load_run_provenance(run_dir)
+
+    assert provenance.run_id == "orphan-run"
+    assert provenance.git_sha is None
+    assert provenance.prompt_template_id is None
 
 
 def test_results_aggregation_is_complete(tmp_path: Path) -> None:
@@ -335,6 +358,335 @@ def test_per_run_summary_and_case_paths_are_traceable(tmp_path: Path) -> None:
     assert report.cases[0].manifest_path.endswith(f"{report.cases[0].run_id}/manifest.json")
 
 
+def test_run_comparisons_capture_case_level_deltas(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs"
+    _write_run(
+        run_root,
+        run_id="phase4-comp-a",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.40,
+            ),
+            _make_result(
+                case_id="case-shared-2",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.50,
+            ),
+        ],
+    )
+    _write_run(
+        run_root,
+        run_id="phase4-comp-b",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.55,
+            ),
+            _make_result(
+                case_id="case-shared-2",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.45,
+                semantic_pass=False,
+            ),
+        ],
+    )
+
+    report = reconstruction_analysis.build_analysis_report(
+        run_dirs=sorted(run_root.iterdir()),
+        promotion_criteria=reconstruction_analysis.PromotionCriteria(
+            min_overlapping_cases=2,
+            min_mean_delta=0.01,
+            min_median_delta=0.0,
+            min_non_negative_share=0.5,
+            max_failure_case_delta=1,
+        ),
+    )
+
+    assert len(report.run_comparisons) == 1
+    comparison = report.run_comparisons[0]
+    assert comparison.reference_run_id == "phase4-comp-a"
+    assert comparison.candidate_run_id == "phase4-comp-b"
+    assert comparison.overlapping_case_count == 2
+    assert comparison.improved_case_count == 1
+    assert comparison.worsened_case_count == 1
+    assert comparison.mean_weighted_objective_delta == pytest.approx(0.05)
+    assert comparison.median_weighted_objective_delta == pytest.approx(0.05)
+    assert (
+        comparison.mean_weighted_objective_delta_ci_low
+        <= comparison.mean_weighted_objective_delta
+    )
+    assert (
+        comparison.mean_weighted_objective_delta_ci_high
+        >= comparison.mean_weighted_objective_delta
+    )
+    assert comparison.bootstrap_resamples >= 100
+    assert comparison.non_negative_case_share == pytest.approx(0.5)
+    assert comparison.failure_case_count_delta == 1
+    assert comparison.largest_gain_case_id == "case-shared-1"
+    assert comparison.largest_gain_delta == pytest.approx(0.15)
+    assert comparison.largest_drop_case_id == "case-shared-2"
+    assert comparison.largest_drop_delta == pytest.approx(-0.05)
+    assert comparison.comparable is True
+    assert comparison.comparability_issues == ()
+    assert comparison.comparability_checks["git_sha"] is True
+    semantic_transition = next(
+        record for record in comparison.failure_transitions if record.label == "semantic_drift"
+    )
+    assert semantic_transition.introduced_count == 1
+    assert semantic_transition.resolved_count == 0
+    assert semantic_transition.persistent_count == 0
+    assert isinstance(comparison.mean_weighted_objective_delta_ci_excludes_zero, bool)
+
+
+def test_constant_deltas_produce_point_interval(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs"
+    _write_run(
+        run_root,
+        run_id="phase4-ci-a",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.20,
+            ),
+            _make_result(
+                case_id="case-shared-2",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.40,
+            ),
+        ],
+    )
+    _write_run(
+        run_root,
+        run_id="phase4-ci-b",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.30,
+            ),
+            _make_result(
+                case_id="case-shared-2",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.50,
+            ),
+        ],
+    )
+
+    report = reconstruction_analysis.build_analysis_report(run_dirs=sorted(run_root.iterdir()))
+
+    comparison = report.run_comparisons[0]
+    assert comparison.mean_weighted_objective_delta == pytest.approx(0.1)
+    assert comparison.mean_weighted_objective_delta_ci_low == pytest.approx(0.1)
+    assert comparison.mean_weighted_objective_delta_ci_high == pytest.approx(0.1)
+    assert comparison.mean_weighted_objective_delta_ci_excludes_zero is True
+
+
+def test_promotion_recommendations_are_separate_from_scheduler_decisions(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs"
+    _write_run(
+        run_root,
+        run_id="phase4-promo-a",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.40,
+            ),
+            _make_result(
+                case_id="case-shared-2",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.50,
+            ),
+        ],
+    )
+    _write_run(
+        run_root,
+        run_id="phase4-promo-b",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.55,
+            ),
+            _make_result(
+                case_id="case-shared-2",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.45,
+            ),
+        ],
+    )
+    _write_run(
+        run_root,
+        run_id="phase4-promo-c",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.56,
+            ),
+            _make_result(
+                case_id="case-shared-2",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.46,
+            ),
+        ],
+    )
+
+    report = reconstruction_analysis.build_analysis_report(
+        run_dirs=sorted(run_root.iterdir()),
+        promotion_criteria=reconstruction_analysis.PromotionCriteria(
+            min_overlapping_cases=2,
+            min_mean_delta=0.04,
+            min_median_delta=0.0,
+            min_non_negative_share=0.5,
+            max_failure_case_delta=0,
+        ),
+    )
+
+    assert report.promotion_recommendations[0].reference_run_id == "phase4-promo-a"
+    assert report.promotion_recommendations[0].candidate_run_id == "phase4-promo-b"
+    assert report.promotion_recommendations[0].recommendation == "promote"
+    assert report.promotion_recommendations[0].criteria_results["comparable_provenance"] is True
+    assert report.promotion_recommendations[0].criteria_results["mean_delta"] is True
+
+    assert report.promotion_recommendations[1].reference_run_id == "phase4-promo-b"
+    assert report.promotion_recommendations[1].candidate_run_id == "phase4-promo-c"
+    assert report.promotion_recommendations[1].recommendation == "reject"
+    assert report.promotion_recommendations[1].criteria_results["mean_delta"] is False
+
+
+def test_promotion_recommendation_holds_when_provenance_is_not_comparable(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs"
+    _write_run(
+        run_root,
+        run_id="phase4-prov-a",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.40,
+            )
+        ],
+    )
+    second_run = _write_run(
+        run_root,
+        run_id="phase4-prov-b",
+        results=[
+            _make_result(
+                case_id="case-shared-1",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.60,
+            )
+        ],
+    )
+    manifest_path = second_run / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["config_payload"]["generation_seed"] = 7
+    manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+
+    report = reconstruction_analysis.build_analysis_report(run_dirs=sorted(run_root.iterdir()))
+
+    assert len(report.run_comparisons) == 1
+    comparison = report.run_comparisons[0]
+    assert comparison.comparable is False
+    assert "generation_seed" in comparison.comparability_issues[0]
+    recommendation = report.promotion_recommendations[0]
+    assert recommendation.recommendation == "hold"
+    assert recommendation.criteria_results["comparable_provenance"] is False
+    assert "provenance" in recommendation.rationale
+
+
+def test_promotion_recommendation_holds_when_runs_do_not_overlap(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs"
+    _write_run(
+        run_root,
+        run_id="phase4-no-overlap-a",
+        results=[
+            _make_result(
+                case_id="case-a",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.40,
+            )
+        ],
+    )
+    _write_run(
+        run_root,
+        run_id="phase4-no-overlap-b",
+        results=[
+            _make_result(
+                case_id="case-b",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="bolano_detectivessalvajes",
+                target_author="Bolano",
+                weighted_objective=0.60,
+            )
+        ],
+    )
+
+    report = reconstruction_analysis.build_analysis_report(run_dirs=sorted(run_root.iterdir()))
+
+    assert report.run_comparisons == ()
+    assert report.promotion_recommendations[0].recommendation == "hold"
+    assert report.promotion_recommendations[0].criteria_results["comparable_provenance"] is False
+    assert "no overlapping cases" in report.promotion_recommendations[0].rationale
+
+
 def test_article_inputs_exist(tmp_path: Path) -> None:
     run_root = tmp_path / "runs"
     _write_run(
@@ -365,6 +717,11 @@ def test_article_inputs_exist(tmp_path: Path) -> None:
     article_inputs = json.loads(paths["article_inputs"].read_text(encoding="utf-8"))
     assert article_inputs["total_cases"] == 1
     assert article_inputs["close_reading_queue"][0]["run_id"] == "phase4-article"
+    assert article_inputs["run_comparisons"] == []
+    assert article_inputs["promotion_recommendations"] == []
+    assert article_inputs["promotion_criteria"]["min_overlapping_cases"] >= 1
+    assert article_inputs["comparability_summary"]["comparable_comparison_count"] == 0
+    assert article_inputs["run_provenance"]["phase4-article"]["generation_seed"] == 42
 
 
 def test_write_analysis_artifacts_optionally_logs_to_wandb(
@@ -489,6 +846,27 @@ def test_write_analysis_artifacts_optionally_logs_to_wandb(
                 "stalled_revision",
                 "target_miss",
             ],
+            "promotion_criteria": {
+                "min_overlapping_cases": 4,
+                "min_mean_delta": 0.005,
+                "min_median_delta": 0.0,
+                "min_non_negative_share": 0.5,
+                "max_failure_case_delta": 0,
+                "require_comparable_provenance": True,
+            },
+            "comparability_invariant_fields": [
+                "git_sha",
+                "phase",
+                "prompt_template_id",
+                "model_id",
+                "corpus_manifest",
+                "split_manifest",
+                "generation_seed",
+                "api_base",
+                "source_windows_path",
+                "success_criteria_path",
+                "target_envelopes_path",
+            ],
         },
     }
 
@@ -499,7 +877,11 @@ def test_write_analysis_artifacts_optionally_logs_to_wandb(
     assert log_calls[0]["analysis/failure_mode_semantic_drift_count"] == 1.0
     assert log_calls[0]["article/close_reading_note_count"] == 2.0
     assert isinstance(log_calls[1]["analysis/run_summary_table"], _Table)
-    assert isinstance(log_calls[2]["article/close_reading_queue"], _Table)
+    assert isinstance(log_calls[2]["analysis/run_comparison_table"], _Table)
+    assert isinstance(log_calls[3]["analysis/failure_transition_table"], _Table)
+    assert isinstance(log_calls[4]["analysis/promotion_table"], _Table)
+    assert isinstance(log_calls[5]["analysis/run_provenance_table"], _Table)
+    assert isinstance(log_calls[6]["article/close_reading_queue"], _Table)
 
     summary_updates = calls["summary_updates"]
     assert isinstance(summary_updates, list)
@@ -508,6 +890,8 @@ def test_write_analysis_artifacts_optionally_logs_to_wandb(
     assert summary_updates[0]["headline_findings"][0].startswith(
         "Best observed reconstruction objective"
     )
+    assert "comparability_summary" in summary_updates[0]
+    assert "promotion_summary" in summary_updates[0]
 
     artifact_calls = calls["artifacts"]
     assert isinstance(artifact_calls, list)

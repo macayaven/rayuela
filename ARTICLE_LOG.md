@@ -423,3 +423,23 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key finding**: The core validity fix is clean — the seed now travels from CLI args through the manifest and into the actual chat completion request. The launcher's dependency-injection design (all side-effects are injectable callables) makes it fully testable without touching real tmux or the network.
 
 **For Part 3**: Before the determinism fix, the overnight comparison mixed iteration-count effects with sampling variance. Now the request surface is honest about seeding, even though vLLM's tensor parallelism means bitwise reproducibility remains out of reach. The article can describe the seed as closing the avoidable gap while acknowledging the irreducible one.
+
+### 2026-03-11 — Part 3 Follow-Up: Comparison Layer and Promotion Criteria
+
+**Phase**: Part 3 — Phase 6 synthesis and methodology hardening
+
+**What happened**: Added a research-facing comparison layer on top of Phase 6 analysis. The synthesis step now computes pairwise run comparisons over overlapping cases, records mean/median objective deltas plus case-level improvement counts, and emits explicit promotion recommendations using configurable criteria. This lives in `src/reconstruction_analysis.py`, not in the scheduler.
+
+**Key decision**: Operational scheduler decisions and research promotion decisions are not the same thing. `keep` / `discard` remains a local queue-control signal. Promotion becomes a later judgment over saved artifacts, using explicit gates about overlap, delta size, non-negative case share, and failure-count movement.
+
+**For Part 3**: This is valuable narratively because it lets us say something more disciplined than “the scheduler liked run B.” We can now say whether a candidate truly earned promotion under explicit criteria, and we can show the case-level evidence for that decision.
+
+### 2026-03-11 — Part 3 Follow-Up: Comparability, Uncertainty, and Failure Transitions
+
+**Phase**: Part 3 — Phase 6 synthesis and methodology hardening
+
+**What happened**: Tightened the Phase 6 comparison layer so it can distinguish operationally comparable evidence from thin or mismatched evidence. `src/reconstruction_analysis.py` now reads compact run provenance from each manifest, flags pairwise comparisons when invariant fields differ, computes deterministic paired bootstrap intervals for mean objective deltas, records whether the paired interval excludes zero, and summarizes failure transitions as persistent/resolved/introduced labels across overlapping cases.
+
+**Key decision**: This additional discipline stays in analysis instead of execution. The scheduler still answers the operational question “what should the queue do next?” The analysis layer now answers the article-facing question “what kind of improvement, if any, actually survived provenance checks, uncertainty, and failure-transition scrutiny?”
+
+**For Part 3**: This matters because the third article should not lean on a tiny positive delta by itself. With the new synthesis fields, the narrative can show whether a candidate run was truly comparable to its reference, whether the observed uplift stayed meaningful under approximate paired uncertainty, and whether extra iterations resolved failure modes or merely traded one failure type for another.
