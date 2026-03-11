@@ -351,6 +351,20 @@ analysis step logs aggregate failure counts, run summaries, and close-reading
 queues so the third article can cite stable synthesis outputs rather than
 hand-maintained notes.
 
+Live prompt baselines now pass the configured reconstruction seed through the
+OpenAI-compatible backend request surface. That does not make every upstream
+serving stack perfectly reproducible, but it closes the avoidable gap where the
+manifest claimed a seed while the generation call ignored it.
+
+For detached execution, use [`src/reconstruction_launcher.py`](src/reconstruction_launcher.py)
+or the thin shell shims in [`scripts/launch_reconstruction_schedule.sh`](scripts/launch_reconstruction_schedule.sh),
+[`scripts/status_reconstruction_schedule.sh`](scripts/status_reconstruction_schedule.sh),
+and [`scripts/stop_reconstruction_schedule.sh`](scripts/stop_reconstruction_schedule.sh).
+The launcher validates the plan, checks the backend and required environment
+keys, writes non-secret launch metadata, starts a tmux session keyed by
+`schedule_id`, and keeps `scheduler.log` and `analysis.log` separate under the
+schedule directory.
+
 Minimal plan shape:
 
 ```json

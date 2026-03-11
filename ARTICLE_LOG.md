@@ -403,3 +403,23 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 - scheduler trust-boundary language was added to the README
 
 **For Part 3**: The workflow is now closer to the standard we want before long-running runs begin: test-green, externally reviewed, and explicit about where operational automation starts and stops.
+
+### 2026-03-11 — Part 3 Follow-Up: Determinism and Detached Launch Hardening
+
+**Phase**: Part 3 — Experiment operations and validity repair
+
+**What happened**: After the first live guided runs, we identified a validity gap and an operations gap. The validity gap was that the live OpenAI-compatible baseline path recorded a reconstruction seed in the manifest but did not pass that seed into the generation request. The operations gap was that the overnight launcher worked under tmux but still relied on an ad hoc shell wrapper without persisted launch metadata, split logs, or explicit status/stop helpers.
+
+**Key decision**: Fix the experimental comparison before hardening the automation around it. A more polished launcher is not helpful if the live 2-vs-3-iteration comparison still mixes true iteration effects with avoidable sampling variance.
+
+**For Part 3**: This keeps the narrative disciplined. The third article can describe the guided experiment loop as operationally useful, but it should not overstate what the overnight comparison proves until the seeded live generation path is repaired and rerun under the hardened launcher.
+
+### 2026-03-11 — Code Review of fix/reconstruction-determinism-wrapper Branch
+
+**Phase**: Part 3 — Pre-merge review
+
+**What happened**: External code review of the determinism fix and detached launcher PR (commit 09354e3). The branch adds seed passthrough to `OpenAIPromptBackend`, a new `reconstruction_launcher.py` with tmux-based detached execution, shell shims for launch/status/stop, and 650+ lines of tests. Review found no high-severity issues. Five low-severity observations: `seed=None` always serialized on the wire (most backends handle it), env parser doesn't strip shell quotes (presence check still works), double plan parsing during launch (wasteful not wrong), hardcoded venv path in shell shims, and no integration test covering `main()` → backend seed wiring end-to-end.
+
+**Key finding**: The core validity fix is clean — the seed now travels from CLI args through the manifest and into the actual chat completion request. The launcher's dependency-injection design (all side-effects are injectable callables) makes it fully testable without touching real tmux or the network.
+
+**For Part 3**: Before the determinism fix, the overnight comparison mixed iteration-count effects with sampling variance. Now the request surface is honest about seeding, even though vLLM's tensor parallelism means bitwise reproducibility remains out of reach. The article can describe the seed as closing the avoidable gap while acknowledging the irreducible one.

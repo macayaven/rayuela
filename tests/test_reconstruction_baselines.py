@@ -374,3 +374,77 @@ def test_prompt_baseline_does_not_train_on_eval_examples() -> None:
             semantic_baseline=semantic_baseline,
             success_criteria=_success_criteria(),
         )
+
+
+def test_openai_prompt_backend_passes_seed_to_chat_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: dict[str, object] = {}
+
+    class _Completions:
+        @staticmethod
+        def create(**kwargs: object) -> object:
+            calls["create"] = kwargs
+            return type(
+                "_Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "_Choice",
+                            (),
+                            {"message": type("_Message", (), {"content": "respuesta"})()},
+                        )()
+                    ]
+                },
+            )()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        def __init__(self, *, base_url: str, api_key: str) -> None:
+            calls["client_init"] = {
+                "base_url": base_url,
+                "api_key": api_key,
+            }
+            self.chat = _Chat()
+
+    monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
+    backend = reconstruction_baselines.OpenAIPromptBackend(
+        api_base="http://localhost:8000/v1",
+        model="Qwen/Qwen3.5-27B-FP8",
+        temperature=0.1,
+        max_tokens=64,
+        seed=17,
+    )
+
+    content = backend.generate(
+        reconstruction_baselines.PromptRequest(
+            case_id="case-1",
+            control_mode="style_shift",
+            iteration_index=0,
+            template_id="style_shift_v1",
+            source_window_id="source:1",
+            target_envelope_id="target:1",
+            system_prompt="system",
+            user_prompt="user",
+            metadata={},
+        )
+    )
+
+    assert content == "respuesta"
+    assert calls["client_init"] == {
+        "base_url": "http://localhost:8000/v1",
+        "api_key": "not-needed",
+    }
+    assert calls["create"] == {
+        "model": "Qwen/Qwen3.5-27B-FP8",
+        "messages": [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "user"},
+        ],
+        "temperature": 0.1,
+        "max_tokens": 64,
+        "seed": 17,
+    }
