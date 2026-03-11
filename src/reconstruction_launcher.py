@@ -187,7 +187,7 @@ def build_launch_metadata(
         plan_path=plan_path.resolve(),
         repo_root=resolved_repo_root,
         env_path=env_path.resolve(),
-        python_path=python_path.resolve(),
+        python_path=python_path.absolute(),
         schedule_dir=schedule_dir,
         analysis_dir=analysis_dir,
         scheduler_log_path=schedule_dir / "scheduler.log",

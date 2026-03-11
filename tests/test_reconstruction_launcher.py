@@ -229,6 +229,24 @@ def test_launch_command_omits_optional_wandb_flags_when_not_configured(tmp_path:
     assert "--wandb-mode offline" in metadata.launch_command
 
 
+def test_build_launch_metadata_preserves_symlinked_python_path(tmp_path: Path) -> None:
+    venv_bin = tmp_path / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    target = venv_bin / "python3"
+    target.write_text("", encoding="utf-8")
+    python_link = venv_bin / "python"
+    python_link.symlink_to(target.name)
+
+    metadata = reconstruction_launcher.build_launch_metadata(
+        plan_path=_write_plan(tmp_path / "plan.json"),
+        repo_root=tmp_path,
+        env_path=_write_env(tmp_path / ".env"),
+        python_path=python_link,
+    )
+
+    assert metadata.python_path == python_link.absolute()
+
+
 def test_schedule_status_reports_tmux_and_artifact_state(tmp_path: Path) -> None:
     plan_path = _write_plan(tmp_path / "plan.json")
     env_path = _write_env(tmp_path / ".env")
