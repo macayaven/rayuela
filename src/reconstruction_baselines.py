@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from openai_response_utils import extract_final_message_content
 from project_config import CORPUS_DIR, CORPUS_OUTPUT_DIR
 from reconstruction_contract import (
     DEFAULT_RECONSTRUCTION_SEED,
@@ -248,20 +249,13 @@ class OpenAIPromptBackend:
             max_tokens=self._max_tokens,
             seed=self._seed,
         )
-        message = response.choices[0].message
-        content = message.content or ""
-        reasoning = getattr(message, "reasoning_content", None) or getattr(
-            message,
-            "reasoning",
-            None,
+        return extract_final_message_content(
+            response.choices[0].message,
+            context=(
+                "prompt generation "
+                f"for case {request.case_id} iteration {request.iteration_index}"
+            ),
         )
-        if not content.strip() and isinstance(reasoning, str) and reasoning.strip():
-            raise RuntimeError(
-                "model returned reasoning without final content "
-                f"for case {request.case_id} iteration {request.iteration_index}; "
-                "increase --generation-max-tokens or tighten the output contract"
-            )
-        return content
 
 
 class DryRunPromptBackend:
@@ -327,11 +321,13 @@ class CorpusMeasurementBackend:
         api_base: str = VLLM_API_BASE,
         model: str = DEFAULT_MODEL_NAME,
         semantic_prompt_path: Path = DEFAULT_SEMANTIC_PROMPT_PATH,
+        semantic_max_tokens: int = 2048,
     ) -> None:
         openai_client = _load_openai_client()
         self._model = model
         self._client = openai_client(base_url=api_base, api_key="not-needed")
         self._semantic_prompt = semantic_prompt_path.read_text(encoding="utf-8")
+        self._semantic_max_tokens = semantic_max_tokens
         self._nlp: Any | None = None
 
     def _load_nlp(self) -> Any:
@@ -372,6 +368,7 @@ class CorpusMeasurementBackend:
             payload,
             self._model,
             with_evidence=False,
+            max_tokens=self._semantic_max_tokens,
         )
         if scores is None:
             raise RuntimeError("semantic extraction failed for candidate rewrite")
@@ -916,6 +913,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Maximum completion tokens allowed for each prompt-generation call.",
     )
     parser.add_argument(
+        "--semantic-generation-max-tokens",
+        type=int,
+        default=2048,
+        help="Maximum completion tokens allowed for each semantic-evaluation call.",
+    )
+    parser.add_argument(
         "--reasoning-parser",
         default=None,
         help="Optional reasoning parser configured on the serving stack, e.g. qwen3.",
@@ -949,6 +952,7 @@ def main(argv: list[str] | None = None) -> int:
         "api_base": args.api_base,
         "model": args.model,
         "generation_max_tokens": args.generation_max_tokens,
+        "semantic_generation_max_tokens": args.semantic_generation_max_tokens,
         "reasoning_parser": args.reasoning_parser,
     }
     manifest = build_run_manifest(
@@ -993,6 +997,7 @@ def main(argv: list[str] | None = None) -> int:
             measurement_backend = CorpusMeasurementBackend(
                 api_base=args.api_base,
                 model=args.model,
+                semantic_max_tokens=args.semantic_generation_max_tokens,
             )
 
         results = [

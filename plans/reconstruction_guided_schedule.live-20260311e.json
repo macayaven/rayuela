@@ -12,6 +12,8 @@
         "{run_id}",
         "--generation-max-tokens",
         "2048",
+        "--semantic-generation-max-tokens",
+        "2048",
         "--max-cases",
         "6",
         "--max-iterations",
