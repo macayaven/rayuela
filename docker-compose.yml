@@ -136,9 +136,9 @@ services:
     # Official NVIDIA Nemotron 3 Nano vLLM path:
     # https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-nano-30b-a3b
     # NOTE: Uses the same host port 8000 as the other vLLM services.
-    command: >
-      python3 -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8/resolve/main/nano_v3_reasoning_parser.py', '/tmp/nano_v3_reasoning_parser.py')" &&
-      vllm serve nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8
+    command: >-
+      python3 -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8/resolve/main/nano_v3_reasoning_parser.py', '/tmp/nano_v3_reasoning_parser.py')" ;
+      exec vllm serve nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8
       --max-num-seqs 8
       --tensor-parallel-size 1
       --max-model-len 262144
