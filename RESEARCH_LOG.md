@@ -136,3 +136,19 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Fix ordering**: We should fix experiment validity before we harden the detached wrapper further. The immediate change is to pass the generation seed through the live backend request and test that the request surface receives it. After that, the detached launcher can be hardened around tmux session naming, prerequisite checks, separate scheduler/analysis logs, persisted non-secret launch metadata, and explicit status/stop helpers.
 
 **External review**: Gemini CLI reviewed that ordering and agreed with it. Claude CLI was not available in this environment, so we could not obtain the second external review pass from the same machine.
+
+### 2026-03-11 — Phase 6 Cross-Run Comparison and Promotion Criteria
+
+**Decision**: Research promotion should be an analysis-layer decision, not a scheduler side effect. The scheduler still records operational `keep` / `discard` / `failed`, but Phase 6 now computes separate run-to-run deltas and explicit promotion recommendations from the immutable case table.
+
+**Implementation**: `src/reconstruction_analysis.py` now builds pairwise run comparisons over overlapping case identities, measures mean/median objective deltas plus case-level improvement shares, and applies explicit promotion criteria (`min_overlapping_cases`, `min_mean_delta`, `min_median_delta`, `min_non_negative_share`, `max_failure_case_delta`). These criteria are configurable at analysis time and are logged into the saved analysis artifacts and W&B summaries.
+
+**Why this matters**: This gives the research loop a disciplined answer to a different question than the scheduler asks. The scheduler answers “did this run beat the current queue rule?” The analysis layer now answers “is this run strong enough, on explicit criteria, to promote as the new research incumbent?” That separation reduces post hoc interpretation and makes seeded vs unseeded comparisons more defensible.
+
+### 2026-03-11 — Phase 6 Methodology Hardening for Cross-Run Claims
+
+**Decision**: Cross-run deltas should not be interpreted without three additional checks: provenance comparability, paired uncertainty, and explicit failure transitions. These belong in analysis, not in the scheduler, because they are judgments over saved artifacts rather than queue-control logic.
+
+**Implementation**: Phase 6 analysis now loads compact run provenance from each manifest and gates comparisons on invariant fields (`git_sha`, phase, prompt template, model, corpus/pilot artifact paths, backend, and generation seed). It also computes deterministic paired bootstrap intervals for mean objective deltas, records whether the paired interval excludes zero, and adds per-label failure-transition summaries (`persistent`, `resolved`, `introduced`) across overlapping cases. These surfaces are persisted in the JSON/Markdown/article artifacts and logged to W&B as comparison, transition, and provenance tables.
+
+**Why this matters**: This materially improves research discipline without changing experiment execution. A small delta can now be interpreted against approximate paired uncertainty rather than raw means alone; a run can be held back if the compared artifacts are not provenance-comparable; and failure movement can be described as “resolved” or “introduced” instead of flattened into one total count. That makes the next seeded-vs-unseeded and 2-vs-3-iteration narratives much harder to overstate.

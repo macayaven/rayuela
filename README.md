@@ -300,16 +300,40 @@ The module provides:
 - complete cross-run case aggregation from `prompt_baseline_cases.json`
 - explicit failure-mode labeling from the saved scoring contract
 - source-side bias slices by work and author
+- pairwise run-comparison summaries over overlapping case identities
+- provenance comparability gates over run invariants such as model, prompt,
+  corpus/pilot artifacts, backend, and generation seed
+- paired bootstrap intervals for mean run-to-run objective deltas
+- explicit whether the paired mean-delta interval excludes zero
+- failure-transition summaries that separate persistent, resolved, and
+  introduced failure labels across overlapping cases
+- explicit promotion recommendations that stay separate from scheduler
+  keep/discard decisions
 - article-ready summary/report artifacts and a close-reading queue with stable
   `run_id` links
 - optional W&B analysis logging for aggregate counts, failure-mode totals,
-  run-summary tables, close-reading queues, and attached analysis artifacts
+  run-summary tables, run-comparison tables, failure-transition tables,
+  promotion tables, provenance tables, close-reading queues, and attached
+  analysis artifacts
 
 Targeted Phase 6 verification:
 
 ```bash
 .venv/bin/python -m pytest tests/test_reconstruction_analysis.py -q
 .venv/bin/python src/reconstruction_analysis.py --wandb-project rayuela --wandb-mode offline
+```
+
+Promotion criteria are configurable at analysis time, for example:
+
+```bash
+.venv/bin/python src/reconstruction_analysis.py \
+  --schedule-summary-path outputs/reconstruction/analysis/schedules/<schedule_id>/schedule_summary.json \
+  --promotion-min-overlapping-cases 4 \
+  --promotion-min-mean-delta 0.005 \
+  --promotion-min-median-delta 0.0 \
+  --promotion-min-non-negative-share 0.5 \
+  --promotion-max-failure-case-delta 0 \
+  --promotion-require-comparable-provenance
 ```
 
 Primary outputs:
@@ -347,9 +371,17 @@ W&B logging is operationally decoupled from experiment execution. The scheduler
 logs one run per planned experiment with the explicit keep/discard/failed
 decision, the chosen advancement metric, and attached local artifacts so the
 research loop can compare runs without rereading raw filesystem state. The
-analysis step logs aggregate failure counts, run summaries, and close-reading
-queues so the third article can cite stable synthesis outputs rather than
-hand-maintained notes.
+analysis step logs aggregate failure counts, run summaries, run comparisons,
+comparability gates, paired uncertainty intervals, failure-transition tables,
+promotion recommendations, and close-reading queues so the third article can
+cite stable synthesis outputs rather than hand-maintained notes.
+Those paired intervals should be read as approximate uncertainty summaries, not
+as a stronger significance claim than the saved case table supports.
+
+This separation is deliberate: scheduler decisions are local operational
+decisions about one finite queue, while promotion recommendations are
+research-facing judgments derived later from the saved case table and explicit
+criteria.
 
 Live prompt baselines now pass the configured reconstruction seed through the
 OpenAI-compatible backend request surface. That does not make every upstream
