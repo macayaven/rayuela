@@ -81,6 +81,7 @@ docker compose --profile llm-nemotron up vllm-nemotron
 - `rayuela` exposes JupyterLab on port `8888`.
 - `vllm` serves Qwen 3.5 on port `8000`.
 - `vllm-nemotron` serves the Nemotron replication model on port `8000` and should not run at the same time as `vllm`.
+- The tracked Qwen vLLM command includes `--reasoning-parser qwen3`, which keeps Qwen reasoning enabled while separating `reasoning_content` from final `content`.
 
 ## Common Commands
 
@@ -253,6 +254,12 @@ python3 -m pytest tests/test_reconstruction_baselines.py -q
 python3 src/reconstruction_baselines.py --run-id phase4-dry-run --dry-run --max-cases 2
 ```
 
+If the serving stack is exposing parser-separated reasoning, record that expectation in the run config:
+
+```bash
+python3 src/reconstruction_baselines.py --run-id phase4-live-parser-check --max-cases 2 --reasoning-parser qwen3
+```
+
 Primary outputs:
 
 - `outputs/reconstruction/runs/<run_id>/prompt_baseline_cases.json`
@@ -299,7 +306,9 @@ The module provides:
 
 - complete cross-run case aggregation from `prompt_baseline_cases.json`
 - explicit failure-mode labeling from the saved scoring contract
+- a compact experiment reading guide that explains how to interpret one batch
 - source-side bias slices by work and author
+- concrete output examples with source/output excerpts and reasoning-leak flags
 - pairwise run-comparison summaries over overlapping case identities
 - provenance comparability gates over run invariants such as model, prompt,
   corpus/pilot artifacts, backend, and generation seed
@@ -313,8 +322,8 @@ The module provides:
   `run_id` links
 - optional W&B analysis logging for aggregate counts, failure-mode totals,
   run-summary tables, run-comparison tables, failure-transition tables,
-  promotion tables, provenance tables, close-reading queues, and attached
-  analysis artifacts
+  promotion tables, provenance tables, reading-guide tables, output-example
+  tables, close-reading queues, and attached analysis artifacts
 
 Targeted Phase 6 verification:
 
@@ -328,6 +337,7 @@ Promotion criteria are configurable at analysis time, for example:
 ```bash
 .venv/bin/python src/reconstruction_analysis.py \
   --schedule-summary-path outputs/reconstruction/analysis/schedules/<schedule_id>/schedule_summary.json \
+  --schedule-run-selection nonfailed \
   --promotion-min-overlapping-cases 4 \
   --promotion-min-mean-delta 0.005 \
   --promotion-min-median-delta 0.0 \
@@ -364,7 +374,7 @@ Targeted scheduler verification:
 ```bash
 .venv/bin/python -m pytest tests/test_reconstruction_scheduler.py -q
 .venv/bin/python src/reconstruction_scheduler.py --plan-path plans/reconstruction_guided_schedule.example.json --wandb-project rayuela --wandb-mode offline
-.venv/bin/python src/reconstruction_analysis.py --schedule-summary-path outputs/reconstruction/analysis/schedules/<schedule_id>/schedule_summary.json --wandb-project rayuela --wandb-mode offline --wandb-group <schedule_id>
+.venv/bin/python src/reconstruction_analysis.py --schedule-summary-path outputs/reconstruction/analysis/schedules/<schedule_id>/schedule_summary.json --schedule-run-selection nonfailed --wandb-project rayuela --wandb-mode offline --wandb-group <schedule_id>
 ```
 
 W&B logging is operationally decoupled from experiment execution. The scheduler
@@ -373,8 +383,9 @@ decision, the chosen advancement metric, and attached local artifacts so the
 research loop can compare runs without rereading raw filesystem state. The
 analysis step logs aggregate failure counts, run summaries, run comparisons,
 comparability gates, paired uncertainty intervals, failure-transition tables,
-promotion recommendations, and close-reading queues so the third article can
-cite stable synthesis outputs rather than hand-maintained notes.
+promotion recommendations, reading guides, concrete output examples, and
+close-reading queues so the third article can cite stable synthesis outputs
+rather than hand-maintained notes.
 Those paired intervals should be read as approximate uncertainty summaries, not
 as a stronger significance claim than the saved case table supports.
 

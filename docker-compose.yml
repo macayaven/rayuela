@@ -75,6 +75,7 @@ services:
       --gpu-memory-utilization 0.85
       --language-model-only
       --enable-prefix-caching
+      --reasoning-parser qwen3
     profiles:
       - llm  # Only starts when explicitly requested: docker compose --profile llm up
 

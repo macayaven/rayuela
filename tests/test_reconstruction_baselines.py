@@ -448,3 +448,69 @@ def test_openai_prompt_backend_passes_seed_to_chat_completion(
         "max_tokens": 64,
         "seed": 17,
     }
+
+
+def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Completions:
+        @staticmethod
+        def create(**kwargs: object) -> object:
+            del kwargs
+            return type(
+                "_Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "_Choice",
+                            (),
+                            {
+                                "message": type(
+                                    "_Message",
+                                    (),
+                                    {
+                                        "content": "respuesta final",
+                                        "reasoning_content": "razonamiento oculto",
+                                    },
+                                )()
+                            },
+                        )()
+                    ]
+                },
+            )()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        def __init__(self, *, base_url: str, api_key: str) -> None:
+            del base_url, api_key
+            self.chat = _Chat()
+
+    monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
+    backend = reconstruction_baselines.OpenAIPromptBackend()
+
+    content = backend.generate(
+        reconstruction_baselines.PromptRequest(
+            case_id="case-1",
+            control_mode="style_shift",
+            iteration_index=0,
+            template_id="style_shift_v1",
+            source_window_id="source:1",
+            target_envelope_id="target:1",
+            system_prompt="system",
+            user_prompt="user",
+            metadata={},
+        )
+    )
+
+    assert content == "respuesta final"
+
+
+def test_parse_generated_text_strips_leading_think_block() -> None:
+    parsed = reconstruction_baselines.parse_generated_text(
+        "<think>razono internamente</think>\n\nTexto final."
+    )
+
+    assert parsed == "Texto final."

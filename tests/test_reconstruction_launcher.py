@@ -227,6 +227,7 @@ def test_launch_command_omits_optional_wandb_flags_when_not_configured(tmp_path:
     assert "--wandb-project" not in metadata.launch_command
     assert "--wandb-entity" not in metadata.launch_command
     assert "--wandb-mode offline" in metadata.launch_command
+    assert "--schedule-run-selection nonfailed" in metadata.launch_command
 
 
 def test_build_launch_metadata_preserves_symlinked_python_path(tmp_path: Path) -> None:

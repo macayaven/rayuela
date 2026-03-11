@@ -42,6 +42,8 @@ COMPARABILITY_INVARIANT_FIELDS = (
     "target_envelopes_path",
 )
 DEFAULT_BOOTSTRAP_RESAMPLES = 1000
+DEFAULT_EXCERPT_CHAR_LIMIT = 280
+SCHEDULE_RUN_SELECTION_CHOICES = ("kept", "nonfailed", "all")
 
 
 @dataclass(frozen=True)
@@ -59,7 +61,12 @@ class AggregatedCaseRecord:
     target_title: str
     weighted_objective: float
     stop_reason: str
+    best_iteration_index: int
+    iteration_count: int
     failure_labels: tuple[str, ...]
+    source_excerpt: str
+    output_excerpt: str
+    reasoning_leak_detected: bool
     manifest_path: str
     cases_path: str
 
@@ -96,6 +103,31 @@ class CloseReadingNote:
     manifest_path: str
     cases_path: str
     prompt: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation."""
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class OutputExampleRecord:
+    """Short concrete example that makes one run outcome easier to inspect."""
+
+    example_kind: str
+    run_id: str
+    case_id: str
+    weighted_objective: float
+    stop_reason: str
+    best_iteration_index: int
+    iteration_count: int
+    failure_labels: tuple[str, ...]
+    reasoning_leak_detected: bool
+    source_title: str
+    target_title: str
+    source_excerpt: str
+    output_excerpt: str
+    manifest_path: str
+    cases_path: str
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -231,6 +263,7 @@ class AnalysisReport:
     run_comparisons: tuple[RunComparisonRecord, ...]
     promotion_recommendations: tuple[PromotionRecommendation, ...]
     close_reading_notes: tuple[CloseReadingNote, ...]
+    output_examples: tuple[OutputExampleRecord, ...]
 
     @property
     def total_runs(self) -> int:
@@ -289,6 +322,45 @@ class AnalysisReport:
                 summary[transition.label]["introduced_count"] += transition.introduced_count
         return summary
 
+    @property
+    def reasoning_leak_summary(self) -> dict[str, Any]:
+        """Summarize how often final outputs still look like process text."""
+        leaky_cases = [case for case in self.cases if case.reasoning_leak_detected]
+        return {
+            "count": len(leaky_cases),
+            "case_ids": [case.case_id for case in leaky_cases],
+            "run_ids": sorted({case.run_id for case in leaky_cases}),
+        }
+
+    @property
+    def experiment_reading_guide(self) -> tuple[str, ...]:
+        """Return a compact guide for interpreting one analysis batch."""
+        guide = [
+            (
+                "Read run_summaries first: mean_weighted_objective and "
+                "median_weighted_objective summarize aggregate quality, while "
+                "failure_case_count shows how often hard controls were violated."
+            ),
+            (
+                "Use output_examples next: compare source_excerpt with output_excerpt; "
+                "reasoning_leak_detected=True means the model emitted process text "
+                "instead of only the rewritten passage."
+            ),
+            (
+                "Use failure labels and stop_reason together: target_miss or "
+                "semantic_drift indicate reconstruction quality problems, while "
+                "stalled_revision/no_objective_improvement means extra revision "
+                "steps were not helping that case."
+            ),
+        ]
+        if self.run_comparisons:
+            guide.append(
+                "Then inspect run_comparisons and promotion_recommendations: prefer "
+                "candidates with comparable provenance, positive mean_delta, "
+                "non-negative median_delta, and no worse failure_case_count_delta."
+            )
+        return tuple(guide)
+
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
         return {
@@ -314,7 +386,10 @@ class AnalysisReport:
             "final_incumbent_run_id": self.final_incumbent_run_id,
             "comparability_summary": self.comparability_summary,
             "failure_transition_summary": self.failure_transition_summary,
+            "reasoning_leak_summary": self.reasoning_leak_summary,
+            "experiment_reading_guide": list(self.experiment_reading_guide),
             "close_reading_notes": [note.to_dict() for note in self.close_reading_notes],
+            "output_examples": [example.to_dict() for example in self.output_examples],
         }
 
 
@@ -356,6 +431,27 @@ def _optional_int(value: Any) -> int | None:
     if isinstance(value, int):
         return value
     return None
+
+
+def _excerpt(value: str, *, char_limit: int = DEFAULT_EXCERPT_CHAR_LIMIT) -> str:
+    """Return one compact single-line excerpt for report surfaces."""
+    collapsed = " ".join(value.split())
+    if len(collapsed) <= char_limit:
+        return collapsed
+    return collapsed[: char_limit - 3].rstrip() + "..."
+
+
+def _detect_reasoning_leak(value: str) -> bool:
+    """Heuristically flag outputs that still contain process or analysis text."""
+    normalized = " ".join(value.strip().split()).lower()
+    return (
+        normalized.startswith("thinking process:")
+        or normalized.startswith("reasoning:")
+        or normalized.startswith("analysis:")
+        or normalized.startswith("chain of thought:")
+        or normalized.startswith("1. **analyze")
+        or normalized.startswith("1. analyze")
+    )
 
 
 def _load_run_provenance(run_dir: Path) -> RunProvenanceRecord:
@@ -489,7 +585,9 @@ def _load_cases_from_run_dir(run_dir: Path) -> list[AggregatedCaseRecord]:
         case = result["case"]
         source_window = case["source_window"]
         target_envelope = case["target_envelope"]
-        best_iteration = result["iterations"][int(result["best_iteration_index"])]
+        best_iteration_index = int(result["best_iteration_index"])
+        best_iteration = result["iterations"][best_iteration_index]
+        parsed_text = str(best_iteration["parsed_text"])
         records.append(
             AggregatedCaseRecord(
                 run_id=run_id,
@@ -503,7 +601,12 @@ def _load_cases_from_run_dir(run_dir: Path) -> list[AggregatedCaseRecord]:
                 target_title=str(target_envelope["title"]),
                 weighted_objective=float(best_iteration["score_history"]["weighted_objective"]),
                 stop_reason=str(result["stop_reason"]),
+                best_iteration_index=best_iteration_index,
+                iteration_count=len(result["iterations"]),
                 failure_labels=_case_failure_labels(result),
+                source_excerpt=_excerpt(str(source_window["text"])),
+                output_excerpt=_excerpt(parsed_text),
+                reasoning_leak_detected=_detect_reasoning_leak(parsed_text),
                 manifest_path=str(manifest_path),
                 cases_path=str(cases_path),
             )
@@ -621,6 +724,44 @@ def _build_close_reading_notes(
             )
         )
     return tuple(notes)
+
+
+def _build_output_examples(
+    cases: tuple[AggregatedCaseRecord, ...],
+) -> tuple[OutputExampleRecord, ...]:
+    """Build a small concrete example set for fast human interpretation."""
+    if not cases:
+        return ()
+
+    ranked = sorted(cases, key=lambda case: case.weighted_objective)
+    selected = [("weakest_case", ranked[0]), ("strongest_case", ranked[-1])]
+    examples: list[OutputExampleRecord] = []
+    seen: set[tuple[str, str]] = set()
+    for example_kind, case in selected:
+        key = (case.run_id, case.case_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        examples.append(
+            OutputExampleRecord(
+                example_kind=example_kind,
+                run_id=case.run_id,
+                case_id=case.case_id,
+                weighted_objective=case.weighted_objective,
+                stop_reason=case.stop_reason,
+                best_iteration_index=case.best_iteration_index,
+                iteration_count=case.iteration_count,
+                failure_labels=case.failure_labels,
+                reasoning_leak_detected=case.reasoning_leak_detected,
+                source_title=case.source_title,
+                target_title=case.target_title,
+                source_excerpt=case.source_excerpt,
+                output_excerpt=case.output_excerpt,
+                manifest_path=case.manifest_path,
+                cases_path=case.cases_path,
+            )
+        )
+    return tuple(examples)
 
 
 def _comparison_case_key(case: AggregatedCaseRecord) -> tuple[str, str, str, str]:
@@ -954,6 +1095,7 @@ def build_analysis_report(
             criteria=resolved_promotion_criteria,
         ),
         close_reading_notes=_build_close_reading_notes(ordered_cases),
+        output_examples=_build_output_examples(ordered_cases),
     )
 
 
@@ -991,11 +1133,18 @@ def _article_inputs_payload(report: AnalysisReport) -> dict[str, Any]:
             "Non-comparable comparisons flagged: "
             f"{report.comparability_summary['noncomparable_comparison_count']}."
         )
+    if report.reasoning_leak_summary["count"] > 0:
+        headline_findings.append(
+            "Reasoning leakage detected in "
+            f"{report.reasoning_leak_summary['count']} case(s); inspect output_examples "
+            "before treating outputs as clean rewrites."
+        )
     return {
         "generated_at": report.generated_at,
         "total_runs": report.total_runs,
         "total_cases": report.total_cases,
         "headline_findings": headline_findings,
+        "experiment_reading_guide": list(report.experiment_reading_guide),
         "run_provenance": {
             run_id: record.to_dict() for run_id, record in report.run_provenance.items()
         },
@@ -1014,7 +1163,9 @@ def _article_inputs_payload(report: AnalysisReport) -> dict[str, Any]:
         "promotion_summary": promotion_summary,
         "comparability_summary": report.comparability_summary,
         "failure_transition_summary": report.failure_transition_summary,
+        "reasoning_leak_summary": report.reasoning_leak_summary,
         "close_reading_queue": [note.to_dict() for note in report.close_reading_notes],
+        "output_examples": [example.to_dict() for example in report.output_examples],
     }
 
 
@@ -1069,6 +1220,7 @@ def _log_analysis_to_wandb(
             "analysis/failure_mode_stalled_revision_count": float(
                 report.failure_modes["stalled_revision"]["count"]
             ),
+            "analysis/reasoning_leak_case_count": float(report.reasoning_leak_summary["count"]),
             "article/close_reading_note_count": float(len(report.close_reading_notes)),
             "research/comparable_comparison_count": float(
                 report.comparability_summary["comparable_comparison_count"]
@@ -1266,6 +1418,52 @@ def _log_analysis_to_wandb(
     )
     run.log({"analysis/run_provenance_table": run_provenance_table})
 
+    reading_guide_table = wandb.Table(
+        columns=["step_index", "guidance"],
+        data=[
+            [index + 1, line]
+            for index, line in enumerate(report.experiment_reading_guide)
+        ],
+    )
+    run.log({"analysis/experiment_reading_guide": reading_guide_table})
+
+    output_example_table = wandb.Table(
+        columns=[
+            "example_kind",
+            "run_id",
+            "case_id",
+            "weighted_objective",
+            "stop_reason",
+            "best_iteration_index",
+            "iteration_count",
+            "reasoning_leak_detected",
+            "failure_labels",
+            "source_title",
+            "target_title",
+            "source_excerpt",
+            "output_excerpt",
+        ],
+        data=[
+            [
+                example.example_kind,
+                example.run_id,
+                example.case_id,
+                example.weighted_objective,
+                example.stop_reason,
+                example.best_iteration_index,
+                example.iteration_count,
+                example.reasoning_leak_detected,
+                list(example.failure_labels),
+                example.source_title,
+                example.target_title,
+                example.source_excerpt,
+                example.output_excerpt,
+            ]
+            for example in report.output_examples
+        ],
+    )
+    run.log({"analysis/output_example_table": output_example_table})
+
     close_reading_table = wandb.Table(
         columns=[
             "run_id",
@@ -1299,8 +1497,10 @@ def _log_analysis_to_wandb(
             "report_path": str(report_path),
             "article_inputs_path": str(article_inputs_path),
             "headline_findings": article_inputs["headline_findings"],
+            "experiment_reading_guide": article_inputs["experiment_reading_guide"],
             "promotion_summary": article_inputs["promotion_summary"],
             "comparability_summary": article_inputs["comparability_summary"],
+            "reasoning_leak_summary": article_inputs["reasoning_leak_summary"],
         }
     )
 
@@ -1358,13 +1558,23 @@ def write_analysis_artifacts(
             f"{report.comparability_summary['noncomparable_comparison_count']}"
         ),
         "",
-        "## Failure Modes",
+        "## How To Read This Batch",
         "",
     ]
+    report_lines.extend(f"- {line}" for line in report.experiment_reading_guide)
+    report_lines.extend(
+        [
+            "",
+            "## Failure Modes",
+            "",
+        ]
+    )
     for label, payload in report.failure_modes.items():
         report_lines.append(
             f"- `{label}`: count={payload['count']}, runs={', '.join(payload['run_ids']) or 'none'}"
         )
+    report_lines.append("")
+    report_lines.append(f"Reasoning leakage cases: {report.reasoning_leak_summary['count']}")
     report_lines.extend(
         [
             "",
@@ -1382,10 +1592,25 @@ def write_analysis_artifacts(
     report_lines.extend(
         [
             "",
-            "## Close Reading Queue",
+            "## Output Examples",
             "",
         ]
     )
+    for example in report.output_examples:
+        label_text = ", ".join(example.failure_labels) if example.failure_labels else "none"
+        report_lines.extend(
+            [
+                f"- `{example.example_kind}`: {example.case_id} ({example.run_id}) "
+                f"objective={example.weighted_objective:.4f}, "
+                f"stop_reason={example.stop_reason}, "
+                f"best_iteration={example.best_iteration_index}/{example.iteration_count - 1}, "
+                f"reasoning_leak_detected={example.reasoning_leak_detected}, "
+                f"failure_labels={label_text}",
+                f"  source_excerpt: {example.source_excerpt}",
+                f"  output_excerpt: {example.output_excerpt}",
+            ]
+        )
+    report_lines.extend(["", "## Close Reading Queue", ""])
     if report.run_comparisons:
         report_lines.extend(["## Run Comparisons", ""])
         for record in report.run_comparisons:
@@ -1459,10 +1684,21 @@ def run_dirs_from_schedule_summary(
     schedule_summary_path: Path,
     *,
     project_root: Path | None = None,
+    run_selection: str = "kept",
 ) -> list[Path]:
-    """Resolve kept run directories from one scheduler summary payload."""
+    """Resolve selected run directories from one scheduler summary payload."""
+    if run_selection not in SCHEDULE_RUN_SELECTION_CHOICES:
+        raise ValueError(
+            f"unsupported schedule run selection {run_selection!r}; "
+            f"expected one of {SCHEDULE_RUN_SELECTION_CHOICES}"
+        )
     payload = _load_json(schedule_summary_path)
-    run_ids = [str(run_id) for run_id in payload.get("kept_run_ids", [])]
+    run_ids: list[str] = [str(run_id) for run_id in payload.get("kept_run_ids", [])]
+    if run_selection in {"nonfailed", "all"}:
+        run_ids.extend(str(run_id) for run_id in payload.get("discarded_run_ids", []))
+    if run_selection == "all":
+        run_ids.extend(str(run_id) for run_id in payload.get("failed_run_ids", []))
+    run_ids = list(dict.fromkeys(run_ids))
     resolved_project_root = (
         ReconstructionPaths().project_root if project_root is None else project_root
     )
@@ -1488,6 +1724,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         dest="schedule_summary_paths",
         type=Path,
         help="Schedule summary whose kept run_ids should be aggregated.",
+    )
+    parser.add_argument(
+        "--schedule-run-selection",
+        choices=SCHEDULE_RUN_SELECTION_CHOICES,
+        default="kept",
+        help="Which schedule run ids to aggregate: kept only, all nonfailed, or all.",
     )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_ANALYSIS_DIR)
     parser.add_argument("--wandb-project", default=None)
@@ -1545,6 +1787,7 @@ def main(argv: list[str] | None = None) -> int:
                 run_dirs_from_schedule_summary(
                     schedule_summary_path,
                     project_root=paths.project_root,
+                    run_selection=args.schedule_run_selection,
                 )
             )
     if not run_dirs:

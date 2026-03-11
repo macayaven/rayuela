@@ -443,3 +443,23 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: This additional discipline stays in analysis instead of execution. The scheduler still answers the operational question “what should the queue do next?” The analysis layer now answers the article-facing question “what kind of improvement, if any, actually survived provenance checks, uncertainty, and failure-transition scrutiny?”
 
 **For Part 3**: This matters because the third article should not lean on a tiny positive delta by itself. With the new synthesis fields, the narrative can show whether a candidate run was truly comparable to its reference, whether the observed uplift stayed meaningful under approximate paired uncertainty, and whether extra iterations resolved failure modes or merely traded one failure type for another.
+
+### 2026-03-11 — Part 3 Follow-Up: Reading Guides and Concrete Output Examples
+
+**Phase**: Part 3 — Phase 6 interpretation and research throughput
+
+**What happened**: Extended `src/reconstruction_analysis.py` test-first so each batch now ships with a compact experiment reading guide, a reasoning-leak summary, and concrete weakest/strongest output examples with source and generated excerpts. The W&B analysis run now logs those guides and examples as first-class tables. The detached launcher was also updated so schedule-driven analysis runs over `nonfailed` schedule entries, which keeps discarded candidates visible in the same synthesis bundle.
+
+**Key decision**: The bottleneck is no longer only GPU time; it is analyst comprehension. If W&B shows scalar metrics without grounded examples, we lose time figuring out what actually happened. The analysis artifacts should therefore explain how to read the run and expose a few real outputs by default.
+
+**For Part 3**: This is useful narratively because the third article will need actual before/after evidence, not only objective numbers. The new example surfaces make it much easier to quote the operational pattern honestly: some runs improve the metric, some leak reasoning text, and some fail in ways that are obvious once the rewritten passage is visible next to the source excerpt.
+
+### 2026-03-11 — Part 3 Follow-Up: Hidden Reasoning Candidate
+
+**Phase**: Part 3 — Phase 4/6 research loop refinement
+
+**What happened**: We reframed the next containment experiment. The goal is not to tell Qwen not to think; it is to stop the saved rewrite from containing the visible chain-of-thought. The tracked Qwen service is now configured for `--reasoning-parser qwen3`, and the Phase 4 baseline CLI can record `--reasoning-parser qwen3` in the run metadata. We also taught the parser to strip leading `<think>...</think>` blocks if a serving path still returns them inline.
+
+**Key decision**: Hidden reasoning is the right target, not zero reasoning. The research loop cares about whether the final passage is usable and scoreable, not whether the model internally reasons. That distinction matters for the later fine-tuning story too: the desired artifact is a clean rewrite, not a silenced model.
+
+**For Part 3**: This gives the narrative a sharper methodological point. The problem exposed by the overnight runs was not “the model thinks too much”; it was “the experiment artifact contains the thinking instead of only the passage.” Fixing that is a better story and a better experimental knob.
