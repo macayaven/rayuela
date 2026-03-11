@@ -1,0 +1,34 @@
+{
+  "schedule_id": "guided-phase4-live-20260311e",
+  "experiments": [
+    {
+      "experiment_id": "baseline-live-seeded-6cases-2iter-qwen3parser",
+      "run_id": "phase4-guided-live-20260311g",
+      "phase": "phase-4-prompt-baselines",
+      "command": [
+        "/home/carlos/education/rayuela/.venv/bin/python",
+        "src/reconstruction_baselines.py",
+        "--run-id",
+        "{run_id}",
+        "--generation-max-tokens",
+        "2048",
+        "--max-cases",
+        "6",
+        "--max-iterations",
+        "2",
+        "--seed",
+        "42",
+        "--api-base",
+        "http://localhost:8000/v1",
+        "--model",
+        "Qwen/Qwen3.5-27B-FP8",
+        "--reasoning-parser",
+        "qwen3"
+      ],
+      "timeout_seconds": 3600,
+      "metric_path_template": "outputs/reconstruction/runs/{run_id}/prompt_baseline_summary.json",
+      "metric_key": "controls.style_shift.mean_weighted_objective",
+      "higher_is_better": true
+    }
+  ]
+}

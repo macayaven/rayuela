@@ -22,6 +22,9 @@ def _make_result(
     target_pass: bool = True,
     length_pass: bool = True,
     lexical_pass: bool = True,
+    source_text: str = "uno dos tres cuatro",
+    raw_response: str = "respuesta",
+    parsed_text: str = "respuesta",
 ) -> dict[str, Any]:
     return {
         "case": {
@@ -38,7 +41,7 @@ def _make_result(
                 "word_start": 0,
                 "word_end": 128,
                 "word_count": 128,
-                "text": "uno dos tres cuatro",
+                "text": source_text,
                 "stylometric_reference": {"sent_len_mean": 1.0},
                 "semantic_reference": {"metafiction": 1.0},
                 "split": "test",
@@ -63,8 +66,8 @@ def _make_result(
                 "template_id": "style_shift_v1",
                 "system_prompt": "system",
                 "user_prompt": "user",
-                "raw_response": "respuesta",
-                "parsed_text": "respuesta",
+                "raw_response": raw_response,
+                "parsed_text": parsed_text,
                 "score": {
                     "semantic_source_distance": 0.2,
                     "stylistic_source_distance": 0.3,
@@ -720,6 +723,59 @@ def test_article_inputs_exist(tmp_path: Path) -> None:
     assert article_inputs["promotion_criteria"]["min_overlapping_cases"] >= 1
     assert article_inputs["comparability_summary"]["comparable_comparison_count"] == 0
     assert article_inputs["run_provenance"]["phase4-article"]["generation_seed"] == 42
+    assert article_inputs["experiment_reading_guide"]
+    assert article_inputs["output_examples"][0]["example_kind"] == "weakest_case"
+
+
+def test_output_examples_capture_source_output_and_reasoning_leak(tmp_path: Path) -> None:
+    run_root = tmp_path / "runs"
+    _write_run(
+        run_root,
+        run_id="phase4-examples",
+        results=[
+            _make_result(
+                case_id="case-clean",
+                source_work_id="borges_elaleph",
+                source_author="Borges",
+                target_work_id="cortazar_rayuela",
+                target_author="Cortazar",
+                weighted_objective=0.25,
+                source_text="Fuente limpia para close reading.",
+                parsed_text="Reescritura limpia para close reading.",
+            ),
+            _make_result(
+                case_id="case-leaky",
+                source_work_id="rulfo_pedroparamo",
+                source_author="Rulfo",
+                target_work_id="bolano_detectivessalvajes",
+                target_author="Bolano",
+                weighted_objective=0.80,
+                source_text="Fuente con contenido narrativo.",
+                parsed_text=(
+                    "Thinking Process: primero analizo la tarea. "
+                    "Luego ofrezco una reescritura supuestamente final."
+                ),
+                semantic_pass=False,
+            ),
+        ],
+    )
+
+    report = reconstruction_analysis.build_analysis_report(run_dirs=[run_root / "phase4-examples"])
+    article_inputs = reconstruction_analysis._article_inputs_payload(report)
+
+    assert report.reasoning_leak_summary["count"] == 1
+    assert report.reasoning_leak_summary["case_ids"] == ["case-leaky"]
+    assert len(report.output_examples) == 2
+    assert report.output_examples[0].example_kind == "weakest_case"
+    assert report.output_examples[1].example_kind == "strongest_case"
+    assert report.output_examples[1].reasoning_leak_detected is True
+    assert "Fuente con contenido narrativo." in report.output_examples[1].source_excerpt
+    assert "Thinking Process:" in report.output_examples[1].output_excerpt
+    assert article_inputs["reasoning_leak_summary"]["count"] == 1
+    assert any(
+        "reasoning_leak_detected=True" in line
+        for line in article_inputs["experiment_reading_guide"]
+    )
 
 
 def test_write_analysis_artifacts_optionally_logs_to_wandb(
@@ -800,6 +856,7 @@ def test_write_analysis_artifacts_optionally_logs_to_wandb(
                 target_work_id="cortazar_rayuela",
                 target_author="Cortazar",
                 weighted_objective=0.81,
+                parsed_text="Thinking Process: analizo y luego reescribo.",
             ),
             _make_result(
                 case_id="case-bottom",
@@ -874,12 +931,15 @@ def test_write_analysis_artifacts_optionally_logs_to_wandb(
     assert log_calls[0]["analysis/total_cases"] == 2.0
     assert log_calls[0]["analysis/failure_mode_semantic_drift_count"] == 1.0
     assert log_calls[0]["article/close_reading_note_count"] == 2.0
+    assert log_calls[0]["analysis/reasoning_leak_case_count"] == 1.0
     assert isinstance(log_calls[1]["analysis/run_summary_table"], _Table)
     assert isinstance(log_calls[2]["analysis/run_comparison_table"], _Table)
     assert isinstance(log_calls[3]["analysis/failure_transition_table"], _Table)
     assert isinstance(log_calls[4]["analysis/promotion_table"], _Table)
     assert isinstance(log_calls[5]["analysis/run_provenance_table"], _Table)
-    assert isinstance(log_calls[6]["article/close_reading_queue"], _Table)
+    assert isinstance(log_calls[6]["analysis/experiment_reading_guide"], _Table)
+    assert isinstance(log_calls[7]["analysis/output_example_table"], _Table)
+    assert isinstance(log_calls[8]["article/close_reading_queue"], _Table)
 
     summary_updates = calls["summary_updates"]
     assert isinstance(summary_updates, list)
@@ -890,6 +950,8 @@ def test_write_analysis_artifacts_optionally_logs_to_wandb(
     )
     assert "comparability_summary" in summary_updates[0]
     assert "promotion_summary" in summary_updates[0]
+    assert summary_updates[0]["reasoning_leak_summary"]["count"] == 1
+    assert summary_updates[0]["experiment_reading_guide"]
 
     artifact_calls = calls["artifacts"]
     assert isinstance(artifact_calls, list)
@@ -923,6 +985,34 @@ def test_schedule_summary_resolves_kept_run_dirs(tmp_path: Path) -> None:
     run_dirs = reconstruction_analysis.run_dirs_from_schedule_summary(
         summary_path,
         project_root=tmp_path,
+    )
+
+    assert run_dirs == [
+        tmp_path / "outputs" / "reconstruction" / "runs" / "phase4-a",
+        tmp_path / "outputs" / "reconstruction" / "runs" / "phase4-b",
+    ]
+
+
+def test_schedule_summary_can_resolve_nonfailed_run_dirs(tmp_path: Path) -> None:
+    summary_path = tmp_path / "scheduler" / "guided-20260310a" / "schedule_summary.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(
+        json.dumps(
+            {
+                "schedule_id": "guided-20260310a",
+                "kept_run_ids": ["phase4-a"],
+                "discarded_run_ids": ["phase4-b"],
+                "failed_run_ids": ["phase4-c"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    run_dirs = reconstruction_analysis.run_dirs_from_schedule_summary(
+        summary_path,
+        project_root=tmp_path,
+        run_selection="nonfailed",
     )
 
     assert run_dirs == [

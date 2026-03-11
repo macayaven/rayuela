@@ -152,3 +152,27 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: Phase 6 analysis now loads compact run provenance from each manifest and gates comparisons on invariant fields (`git_sha`, phase, prompt template, model, corpus/pilot artifact paths, backend, and generation seed). It also computes deterministic paired bootstrap intervals for mean objective deltas, records whether the paired interval excludes zero, and adds per-label failure-transition summaries (`persistent`, `resolved`, `introduced`) across overlapping cases. These surfaces are persisted in the JSON/Markdown/article artifacts and logged to W&B as comparison, transition, and provenance tables.
 
 **Why this matters**: This materially improves research discipline without changing experiment execution. A small delta can now be interpreted against approximate paired uncertainty rather than raw means alone; a run can be held back if the compared artifacts are not provenance-comparable; and failure movement can be described as “resolved” or “introduced” instead of flattened into one total count. That makes the next seeded-vs-unseeded and 2-vs-3-iteration narratives much harder to overstate.
+
+### 2026-03-11 — Phase 6 Experiment Interpretation Surfaces
+
+**Decision**: Phase 6 should explain how to read a batch, not only emit metrics. The analysis layer now carries a compact reading guide, concrete source/output examples, and an explicit reasoning-leak summary so the research loop can interpret runs without reverse-engineering the W&B tables every time.
+
+**Implementation**: `src/reconstruction_analysis.py` now extracts short source and output excerpts from each saved case, flags outputs that still look like process text (`Thinking Process:` and similar markers), and publishes weakest/strongest concrete examples into the summary JSON, Markdown report, article inputs, and W&B tables. The detached launcher now calls analysis with `--schedule-run-selection nonfailed`, so future schedule-level synthesis includes both kept and discarded candidates instead of only the incumbent.
+
+**Why this matters**: This improves research throughput without changing the execution contract. We can now judge whether a scalar objective corresponds to an actually usable rewrite, spot reasoning leakage quickly, and compare discarded candidates against the incumbent in the same analysis batch. That should reduce idle GPU time lost to human confusion rather than to model runtime.
+
+### 2026-03-11 — Hidden Reasoning Instead of Visible Chain-of-Thought
+
+**Decision**: For Qwen-based reconstruction runs, the preferred containment path is not “disable thinking.” It is “allow reasoning, but keep the reasoning channel separate from the final passage.” That preserves model capability while stopping the saved rewrite from filling with `Thinking Process:` scaffolding.
+
+**Implementation**: The tracked Qwen vLLM service now enables `--reasoning-parser qwen3`, and Phase 4 run configs can record `--reasoning-parser qwen3` in their manifest payload. `parse_generated_text()` also strips leading `<think>...</think>` blocks when a server returns them inline instead of through a separated reasoning channel.
+
+**Why this matters**: This is the right experimental control for the current problem. The objective is not to make the model shallower; it is to stop visible reasoning text from contaminating the rewrite artifact and the downstream score. That keeps the experiment closer to the later fine-tuning target, which will also care about final passage quality rather than exposed chain-of-thought.
+
+### 2026-03-11 — Generation Budget Guard for Hidden-Reasoning Runs
+
+**Decision**: The completion token budget for Phase 4 live generation is now an explicit experiment parameter rather than an implicit backend default. Hidden reasoning only helps if the model still reaches a final passage inside the same response.
+
+**Implementation**: `src/reconstruction_baselines.py` now exposes `--generation-max-tokens`, records it in the immutable run manifest, and forwards it into the live prompt backend. The OpenAI-compatible path also now fails fast when the serving stack returns a non-empty reasoning channel but no final `content`, with an error that points directly to the generation-budget/output-contract problem.
+
+**Why this matters**: This improves research throughput and result quality at the same time. We stop wasting GPU time on runs that would only score empty candidates, and we make future seeded comparisons auditable because the token budget is part of the saved experiment contract instead of a hidden default.

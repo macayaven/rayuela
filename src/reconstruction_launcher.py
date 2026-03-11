@@ -71,6 +71,8 @@ class LaunchMetadata:
             "src/reconstruction_analysis.py",
             "--schedule-summary-path",
             str(self.schedule_dir / "schedule_summary.json"),
+            "--schedule-run-selection",
+            "nonfailed",
             "--output-dir",
             str(self.analysis_dir),
         ]
