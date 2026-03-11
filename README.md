@@ -413,6 +413,12 @@ OpenAI-compatible backend request surface. That does not make every upstream
 serving stack perfectly reproducible, but it closes the avoidable gap where the
 manifest claimed a seed while the generation call ignored it.
 
+Phase 4 also now trims obvious post-passage meta commentary such as `Nota:`,
+`Note:`, `Explicación:`, or `Changes made:` suffixes before scoring the
+candidate rewrite. That keeps the weighted objective focused on the rewritten
+passage itself while preserving audit metadata in the saved iteration record and
+reporting the trimmed-case count in the Phase 4 summary/report.
+
 For detached execution, use [`src/reconstruction_launcher.py`](src/reconstruction_launcher.py)
 or the thin shell shims in [`scripts/launch_reconstruction_schedule.sh`](scripts/launch_reconstruction_schedule.sh),
 [`scripts/status_reconstruction_schedule.sh`](scripts/status_reconstruction_schedule.sh),

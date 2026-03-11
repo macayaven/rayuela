@@ -683,6 +683,56 @@ def test_parse_generated_text_strips_leading_think_block() -> None:
     assert parsed == "Texto final."
 
 
+def test_parse_generated_text_strips_obvious_meta_suffix() -> None:
+    parsed = reconstruction_baselines.parse_generated_text(
+        "Texto final.\n\n**Nota:** Ajuste el pasaje para sonar mas bolanesco."
+    )
+
+    assert parsed == "Texto final."
+
+
+def test_prompt_case_records_visible_meta_suffix_trimming() -> None:
+    stylometric_baseline = _manual_baseline(
+        "stylometric",
+        ["sent_len_mean", "mattr"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    semantic_baseline = _manual_baseline(
+        "semantic",
+        ["existential_questioning", "metafiction"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    prompt_backend = StubPromptBackend(
+        [
+            "Texto final.\n\n**Nota:** Ajuste el pasaje para sonar mas bolanesco.",
+        ]
+    )
+    measurement_backend = StubMeasurementBackend(
+        {
+            "Texto final.": reconstruction_baselines.CandidateMeasurements(
+                stylometric=np.array([2.5, 2.5]),
+                semantic=np.array([1.2, 1.2]),
+            )
+        }
+    )
+
+    result = reconstruction_baselines.run_prompt_case(
+        case=_baseline_case(),
+        prompt_backend=prompt_backend,
+        measurement_backend=measurement_backend,
+        stylometric_baseline=stylometric_baseline,
+        semantic_baseline=semantic_baseline,
+        success_criteria=_success_criteria(),
+        max_iterations=1,
+    )
+
+    iteration = result.iterations[0]
+
+    assert iteration.parsed_text == "Texto final."
+    assert iteration.visible_meta_suffix_trimmed is True
+    assert iteration.visible_meta_suffix_marker == "**Nota:**"
+
+
 def test_default_prompt_templates_tighten_visible_output_contract() -> None:
     templates = reconstruction_baselines.default_prompt_templates()
 

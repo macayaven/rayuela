@@ -192,3 +192,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: The default rewrite templates are now versioned as `style_shift_v2` and `revise_v2`. They explicitly tell the model to think silently, keep reasoning private, and begin the visible answer immediately with the rewritten passage itself, with no labels, markdown, XML tags, quotes, or explanatory text. The Phase 4 manifest now records the new template ID instead of silently reusing the old `v1` label.
 
 **Why this matters**: This is the lowest-complexity change that could plausibly fix the current blocker. If it works, we keep the research lane simple and move toward the fine-tuning prerequisites faster. If it fails, we will know the remaining problem is not just sloppy prompt contract wording.
+
+### 2026-03-11 — Visible Meta-Suffix Trimming for Prompt Baselines
+
+**Decision**: Some models now satisfy the basic rewrite call but still append visible commentary after the passage, for example `**Nota:**` plus a bullet list describing the stylistic changes. That suffix should not be scored as part of the literary rewrite.
+
+**Implementation**: `src/reconstruction_baselines.py` now trims obvious post-passage meta-commentary markers such as `Nota:`, `Note:`, `Explicación:`, `Commentary:`, `Justificación:`, `Cambios realizados:`, and `Changes made:` after normalization. The saved iteration record keeps audit fields indicating whether a visible meta suffix was trimmed and which marker triggered it. The Phase 4 summary/report also exposes a per-control trimmed-case count.
+
+**Why this matters**: This is a low-complexity way to keep the measured object aligned with the research target. We still record that the model violated the output contract, but we no longer let an explanatory suffix dominate the score or the close-reading sample.

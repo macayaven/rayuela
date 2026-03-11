@@ -14,6 +14,7 @@ import argparse
 import importlib
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -132,6 +133,8 @@ class IterationRecord:
     score: Any
     score_history: dict[str, float | bool]
     accepted_as_best: bool
+    visible_meta_suffix_trimmed: bool = False
+    visible_meta_suffix_marker: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -145,7 +148,18 @@ class IterationRecord:
             "score": self.score.to_dict(),
             "score_history": self.score_history,
             "accepted_as_best": self.accepted_as_best,
+            "visible_meta_suffix_trimmed": self.visible_meta_suffix_trimmed,
+            "visible_meta_suffix_marker": self.visible_meta_suffix_marker,
         }
+
+
+@dataclass(frozen=True)
+class ParsedGeneration:
+    """Normalized candidate text plus output-contract cleanup metadata."""
+
+    text: str
+    visible_meta_suffix_trimmed: bool = False
+    visible_meta_suffix_marker: str | None = None
 
 
 @dataclass(frozen=True)
@@ -521,6 +535,35 @@ def _style_summary(case: BaselineCase) -> str:
 
 def parse_generated_text(raw_response: str) -> str:
     """Normalize raw model output into the candidate text scored downstream."""
+    return normalize_generated_text(raw_response).text
+
+
+_VISIBLE_META_SUFFIX_RE = re.compile(
+    r"(?ims)\n\s*\n(?P<marker>(?:\*\*)?\s*(?:"
+    r"nota|note|notes|explicaci[oó]n|explanation|"
+    r"comentario|commentary|justificaci[oó]n|justification|"
+    r"cambios realizados|changes made"
+    r")\s*:\s*(?:\*\*)?).*$"
+)
+
+
+def _strip_visible_meta_suffix(text: str) -> ParsedGeneration:
+    """Trim obvious post-passage commentary while preserving audit metadata."""
+    match = _VISIBLE_META_SUFFIX_RE.search(text)
+    if match is None:
+        return ParsedGeneration(text=text.strip())
+    trimmed = text[: match.start()].rstrip()
+    if not trimmed:
+        return ParsedGeneration(text=text.strip())
+    return ParsedGeneration(
+        text=trimmed,
+        visible_meta_suffix_trimmed=True,
+        visible_meta_suffix_marker=match.group("marker").strip(),
+    )
+
+
+def normalize_generated_text(raw_response: str) -> ParsedGeneration:
+    """Normalize raw model output and track obvious output-contract violations."""
     text = raw_response.strip()
     lowered = text.lower()
     if lowered.startswith("<think>") and "</think>" in lowered:
@@ -530,7 +573,7 @@ def parse_generated_text(raw_response: str) -> str:
         lines = text.splitlines()
         if len(lines) >= 3:
             text = "\n".join(lines[1:-1]).strip()
-    return text.strip()
+    return _strip_visible_meta_suffix(text.strip())
 
 
 def _feedback_from_score(score_history: dict[str, float | bool]) -> str:
@@ -714,7 +757,8 @@ def run_prompt_case(
             )
             raw_response = prompt_backend.generate(request)
 
-        parsed_text = parse_generated_text(raw_response) or case.source_window.text
+        normalized_output = normalize_generated_text(raw_response)
+        parsed_text = normalized_output.text or case.source_window.text
         candidate = measurement_backend.measure(
             source_window=case.source_window,
             target_envelope=case.target_envelope,
@@ -751,6 +795,8 @@ def run_prompt_case(
                 score=score,
                 score_history=score_history,
                 accepted_as_best=accepted_as_best,
+                visible_meta_suffix_trimmed=normalized_output.visible_meta_suffix_trimmed,
+                visible_meta_suffix_marker=normalized_output.visible_meta_suffix_marker,
             )
         )
 
@@ -780,10 +826,14 @@ def _summary_by_control(results: list[BaselineCaseResult]) -> dict[str, dict[str
             float(item.final_iteration.score_history["weighted_objective"])
             for item in items
         ]
+        meta_trim_count = sum(
+            1 for item in items if item.final_iteration.visible_meta_suffix_trimmed
+        )
         summary[control_mode] = {
             "count": len(items),
             "mean_weighted_objective": float(np.mean(objectives)),
             "median_weighted_objective": float(np.median(objectives)),
+            "meta_suffix_trimmed_case_count": meta_trim_count,
             "stop_reasons": sorted({item.stop_reason for item in items}),
         }
     return summary
@@ -824,6 +874,7 @@ def write_baseline_artifacts(
             f"- `{control_mode}`: count={stats['count']}, "
             f"mean weighted objective={stats['mean_weighted_objective']:.4f}, "
             f"median weighted objective={stats['median_weighted_objective']:.4f}, "
+            f"meta suffix trimmed cases={stats['meta_suffix_trimmed_case_count']}, "
             f"stop reasons={', '.join(stats['stop_reasons'])}"
         )
 

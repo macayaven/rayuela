@@ -493,3 +493,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: The new `style_shift_v2` / `revise_v2` templates keep hidden reasoning enabled but explicitly require the visible answer to begin with the passage itself and forbid labels, headings, markdown, XML tags, quotes, or explanation text. This is the cheapest plausible fix, so it should be tried before broadening the model surface.
 
 **For Part 3**: This helps the story stay clean. If the tightened prompt works, we can say the failure mode was still mostly contractual. If it does not, then a later model pivot or generation/measurement decoupling will be easier to justify.
+
+### 2026-03-11 — Part 3 Follow-Up: Trim Commentary, Keep the Audit Trail
+
+**Phase**: Part 3 — Phase 4 output-contract hardening
+
+**What happened**: A bounded Nemotron launchcheck completed, but the generated rewrite still appended a visible `**Nota:**` section describing what had been changed. We hardened the Phase 4 parser so obvious post-passage commentary markers are trimmed before scoring while the iteration artifact keeps explicit audit fields showing that the model emitted them.
+
+**Key decision**: The measured object for this phase is the rewritten passage, not the model's self-explanation. We should keep evidence of the output-contract violation, but we should not let a trailing note pollute the literary score.
+
+**For Part 3**: This gives the article a cleaner methodological claim. When we say a rewrite scored poorly, the reader can trust that we are talking about the passage itself rather than about a markdown-style explanation bolted onto the end of it.
