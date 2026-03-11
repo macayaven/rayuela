@@ -578,6 +578,103 @@ def test_build_argument_parser_exposes_generation_max_tokens() -> None:
     assert args.generation_max_tokens == 2048
 
 
+def test_build_argument_parser_exposes_semantic_generation_max_tokens() -> None:
+    args = reconstruction_baselines.build_argument_parser().parse_args(
+        [
+            "--run-id",
+            "phase4-test",
+            "--semantic-generation-max-tokens",
+            "1536",
+        ]
+    )
+
+    assert args.semantic_generation_max_tokens == 1536
+
+
+def test_corpus_measurement_backend_passes_semantic_generation_max_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    prompt_path = tmp_path / "semantic_prompt.txt"
+    prompt_path.write_text("prompt", encoding="utf-8")
+    calls: dict[str, object] = {}
+
+    class _Client:
+        def __init__(self, *, base_url: str, api_key: str) -> None:
+            calls["client_init"] = {
+                "base_url": base_url,
+                "api_key": api_key,
+            }
+
+    def _extract_chapter(
+        client: object,
+        prompt: str,
+        chapter: dict[str, object],
+        model: str,
+        with_evidence: bool = False,
+        max_tokens: int | None = None,
+    ) -> dict[str, int]:
+        calls["extract_chapter"] = {
+            "client": client,
+            "prompt": prompt,
+            "chapter": chapter,
+            "model": model,
+            "with_evidence": with_evidence,
+            "max_tokens": max_tokens,
+        }
+        return {
+            "existential_questioning": 4,
+            "metafiction": 7,
+            "temporal_clarity": 5,
+        }
+
+    def _fake_import_module(name: str) -> object:
+        if name == "semantic_extraction":
+            return type(
+                "_SemanticModule",
+                (),
+                {
+                    "DIMENSIONS": [
+                        "existential_questioning",
+                        "metafiction",
+                        "temporal_clarity",
+                    ],
+                    "extract_chapter": staticmethod(_extract_chapter),
+                },
+            )()
+        return __import__(name)
+
+    monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
+    monkeypatch.setattr(reconstruction_baselines.importlib, "import_module", _fake_import_module)
+
+    backend = reconstruction_baselines.CorpusMeasurementBackend(
+        api_base="http://localhost:8000/v1",
+        model="Qwen/Qwen3.5-27B-FP8",
+        semantic_prompt_path=prompt_path,
+        semantic_max_tokens=1536,
+    )
+
+    vector = backend._measure_semantic("texto candidato")
+
+    assert calls["client_init"] == {
+        "base_url": "http://localhost:8000/v1",
+        "api_key": "not-needed",
+    }
+    assert np.array_equal(vector, np.array([4.0, 7.0]))
+    assert calls["extract_chapter"] == {
+        "client": backend._client,
+        "prompt": "prompt",
+        "chapter": {
+            "number": 0,
+            "section": "rewrite",
+            "text": "texto candidato",
+        },
+        "model": "Qwen/Qwen3.5-27B-FP8",
+        "with_evidence": False,
+        "max_tokens": 1536,
+    }
+
+
 def test_parse_generated_text_strips_leading_think_block() -> None:
     parsed = reconstruction_baselines.parse_generated_text(
         "<think>razono internamente</think>\n\nTexto final."

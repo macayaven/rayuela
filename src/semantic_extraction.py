@@ -30,6 +30,8 @@ from pathlib import Path
 import numpy as np
 from openai import OpenAI
 
+from openai_response_utils import extract_final_message_content
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -106,6 +108,7 @@ def extract_chapter(
     chapter: dict,
     model_name: str,
     with_evidence: bool = False,
+    max_tokens: int | None = None,
     max_retries: int = 2,
 ) -> dict | None:
     """
@@ -121,8 +124,10 @@ def extract_chapter(
         f"{chapter['text']}"
     )
 
-    # Evidence mode needs more output tokens for the justification strings
-    max_tokens = 2048 if with_evidence else 512
+    # Hidden reasoning can consume part of the completion budget before the
+    # final structured payload appears, so the no-evidence default is higher
+    # than the pre-parser baseline.
+    token_budget = 2048 if max_tokens is None else max_tokens
 
     for attempt in range(max_retries + 1):
         try:
@@ -133,7 +138,7 @@ def extract_chapter(
                     {"role": "user", "content": user_message},
                 ],
                 temperature=0,
-                max_tokens=max_tokens,
+                max_tokens=token_budget,
                 response_format={
                     "type": "json_schema",
                     "json_schema": {
@@ -143,7 +148,10 @@ def extract_chapter(
                 },
             )
 
-            raw = response.choices[0].message.content
+            raw = extract_final_message_content(
+                response.choices[0].message,
+                context=f"semantic extraction for chapter {chapter['number']}",
+            )
             result = json.loads(raw)
             scores = validate_scores(result, chapter["number"], with_evidence=with_evidence)
 
@@ -322,6 +330,12 @@ def main():
         "--resume", action="store_true",
         help="Resume from existing narrative_dna.json (skip already-extracted chapters)"
     )
+    parser.add_argument(
+        "--generation-max-tokens",
+        type=int,
+        default=2048,
+        help="Maximum completion tokens allowed for each extraction call.",
+    )
     args = parser.parse_args()
 
     # Resolve paths
@@ -335,6 +349,7 @@ def main():
     print(f"Model: {args.model}")
     print(f"API:   {args.api_base}")
     print(f"Dimensions: {len(DIMENSIONS)}")
+    print(f"Generation max tokens: {args.generation_max_tokens}")
     print()
 
     # Load data
@@ -403,8 +418,14 @@ def main():
         print(f"{label} Ch.{ch['number']:3d} ({ch['token_count']:,} words)...", end=" ", flush=True)
 
         t0 = time.time()
-        scores = extract_chapter(client, system_prompt, ch, args.model,
-                                 with_evidence=args.with_evidence)
+        scores = extract_chapter(
+            client,
+            system_prompt,
+            ch,
+            args.model,
+            with_evidence=args.with_evidence,
+            max_tokens=args.generation_max_tokens,
+        )
         elapsed = time.time() - t0
         total_time += elapsed
 

@@ -473,3 +473,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: Token budget is now treated as part of the research contract, not as an invisible transport detail. If the model reasons internally, the experiment has to budget enough room for both the hidden reasoning and the final literary passage.
 
 **For Part 3**: This matters because the article should not describe empty or truncated rewrites as if they were literary failures. Some of them are really execution-contract failures. Making the budget explicit helps separate “bad rewrite” from “never reached final answer,” which is a much cleaner story.
+
+### 2026-03-11 — Part 3 Follow-Up: Semantic Evaluator Budget and Parser Awareness
+
+**Phase**: Part 3 — Phase 4 measurement robustness
+
+**What happened**: The first parser-enabled rerun did not fail inside the rewrite generator; it failed later in semantic measurement. The evaluator was still assuming `message.content` always held the JSON payload, so parser-separated reasoning turned into a `json.loads(None)` failure path.
+
+**Key decision**: Hidden reasoning has to be handled across the whole experiment surface, not only in the saved rewrite. The semantic evaluator now gets its own explicit token budget and the same parser-aware final-content extraction logic as the prompt generator.
+
+**For Part 3**: This sharpens the narrative around failure attribution. A batch that dies because the evaluator never received final JSON should not be read as evidence that the rewrite was semantically bad. It is an execution-contract failure, and the article can now say that more honestly.

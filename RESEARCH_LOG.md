@@ -176,3 +176,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: `src/reconstruction_baselines.py` now exposes `--generation-max-tokens`, records it in the immutable run manifest, and forwards it into the live prompt backend. The OpenAI-compatible path also now fails fast when the serving stack returns a non-empty reasoning channel but no final `content`, with an error that points directly to the generation-budget/output-contract problem.
 
 **Why this matters**: This improves research throughput and result quality at the same time. We stop wasting GPU time on runs that would only score empty candidates, and we make future seeded comparisons auditable because the token budget is part of the saved experiment contract instead of a hidden default.
+
+### 2026-03-11 — Semantic Evaluator Guard for Hidden-Reasoning Runs
+
+**Decision**: The structured semantic-evaluation path must be parser-aware too. Hidden reasoning is acceptable only if the evaluator still receives the final JSON payload; otherwise a “semantic failure” may really be an execution-contract failure.
+
+**Implementation**: `src/semantic_extraction.py` now uses the same parser-aware message-content helper as the prompt generator. It accepts an explicit `max_tokens` budget, defaults that budget higher under the Qwen reasoning parser, and raises a clear error when the model returns reasoning without final JSON. `src/reconstruction_baselines.py` now exposes `--semantic-generation-max-tokens` and records it in the run manifest so the measurement budget is part of the saved experiment contract.
+
+**Why this matters**: The failed hidden-reasoning run showed that fixing only the rewrite generator was not enough. The evaluator can also starve before it emits structured output. Making that budget explicit closes a real gap in the methodology and avoids wasting GPU time on retries that can never yield a score.
