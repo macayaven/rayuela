@@ -427,12 +427,10 @@ def test_run_comparisons_capture_case_level_deltas(tmp_path: Path) -> None:
     assert comparison.mean_weighted_objective_delta == pytest.approx(0.05)
     assert comparison.median_weighted_objective_delta == pytest.approx(0.05)
     assert (
-        comparison.mean_weighted_objective_delta_ci_low
-        <= comparison.mean_weighted_objective_delta
+        comparison.mean_weighted_objective_delta_ci_low <= comparison.mean_weighted_objective_delta
     )
     assert (
-        comparison.mean_weighted_objective_delta_ci_high
-        >= comparison.mean_weighted_objective_delta
+        comparison.mean_weighted_objective_delta_ci_high >= comparison.mean_weighted_objective_delta
     )
     assert comparison.bootstrap_resamples >= 100
     assert comparison.non_negative_case_share == pytest.approx(0.5)
