@@ -125,7 +125,10 @@ def _parse_env_file(path: Path) -> dict[str, str]:
         if not stripped or stripped.startswith("#") or "=" not in stripped:
             continue
         key, value = stripped.split("=", 1)
-        values[key.strip()] = value.strip()
+        cleaned = value.strip()
+        if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {"'", '"'}:
+            cleaned = cleaned[1:-1]
+        values[key.strip()] = cleaned
     return values
 
 
@@ -403,6 +406,7 @@ def stop_schedule(
     schedule_id: str,
     repo_root: Path = PROJECT_ROOT,
     run_tmux_command: Callable[[list[str]], None] = _default_run_tmux_command,
+    tmux_session_exists: Callable[[str, str], bool] = _default_tmux_session_exists,
 ) -> None:
     """Stop one launched schedule by killing its tmux session."""
     paths = ReconstructionPaths(project_root=repo_root.resolve())
@@ -410,6 +414,10 @@ def stop_schedule(
     if not metadata_path.exists():
         raise FileNotFoundError(f"launch metadata does not exist for schedule {schedule_id!r}")
     metadata = _load_launch_metadata(metadata_path)
+    if not tmux_session_exists(metadata.tmux_socket_name, metadata.tmux_session_name):
+        raise FileNotFoundError(
+            f"tmux session is not active for schedule {schedule_id!r}: {metadata.tmux_session_name}"
+        )
     run_tmux_command(
         [
             "tmux",

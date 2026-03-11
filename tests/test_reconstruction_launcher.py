@@ -309,6 +309,7 @@ def test_stop_schedule_kills_tmux_session_from_metadata(tmp_path: Path) -> None:
         schedule_id=metadata.schedule_id,
         repo_root=tmp_path,
         run_tmux_command=_run_tmux,
+        tmux_session_exists=lambda socket_name, session_name: True,
     )
 
     assert tmux_calls == [
@@ -328,6 +329,24 @@ def test_stop_schedule_rejects_missing_metadata(tmp_path: Path) -> None:
         reconstruction_launcher.stop_schedule(
             schedule_id="guided-20260311a",
             repo_root=tmp_path,
+        )
+
+
+def test_stop_schedule_rejects_inactive_tmux_session(tmp_path: Path) -> None:
+    metadata = reconstruction_launcher.build_launch_metadata(
+        plan_path=_write_plan(tmp_path / "plan.json"),
+        repo_root=tmp_path,
+        env_path=_write_env(tmp_path / ".env"),
+        python_path=tmp_path / ".venv" / "bin" / "python",
+    )
+    metadata.schedule_dir.mkdir(parents=True, exist_ok=True)
+    metadata.launch_metadata_path.write_text(json.dumps(metadata.to_dict()), encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="tmux session is not active"):
+        reconstruction_launcher.stop_schedule(
+            schedule_id=metadata.schedule_id,
+            repo_root=tmp_path,
+            tmux_session_exists=lambda socket_name, session_name: False,
         )
 
 
@@ -442,6 +461,50 @@ def test_parse_env_file_skips_comments_and_invalid_lines(tmp_path: Path) -> None
         "HF_TOKEN": "test-token",
         "WANDB_API_KEY": "test-key",
     }
+
+
+def test_parse_env_file_strips_matching_quotes(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "\n".join(
+            [
+                'HF_TOKEN="quoted-token"',
+                "WANDB_API_KEY='quoted-key'",
+                'EMPTY_VALUE=""',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert reconstruction_launcher._parse_env_file(env_path) == {
+        "HF_TOKEN": "quoted-token",
+        "WANDB_API_KEY": "quoted-key",
+        "EMPTY_VALUE": "",
+    }
+
+
+def test_validate_launch_prerequisites_rejects_quoted_empty_env_values(tmp_path: Path) -> None:
+    plan_path = _write_plan(tmp_path / "plan.json")
+    env_path = tmp_path / ".env"
+    env_path.write_text('WANDB_API_KEY="test-key"\nHF_TOKEN=""\n', encoding="utf-8")
+    metadata = reconstruction_launcher.build_launch_metadata(
+        plan_path=plan_path,
+        repo_root=tmp_path,
+        env_path=env_path,
+        python_path=tmp_path / ".venv" / "bin" / "python",
+        wandb_project="rayuela",
+        wandb_entity="entity",
+        wandb_mode="online",
+    )
+
+    with pytest.raises(ValueError, match="HF_TOKEN"):
+        reconstruction_launcher.validate_launch_prerequisites(
+            metadata,
+            python_version_probe=lambda python_path: None,
+            backend_probe=lambda api_base: None,
+            tmux_session_exists=lambda socket_name, session_name: False,
+        )
 
 
 def test_default_python_version_probe_requires_existing_interpreter(tmp_path: Path) -> None:
