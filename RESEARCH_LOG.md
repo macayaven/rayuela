@@ -126,3 +126,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 - We did not broaden the close-reading queue yet. For the current small-run state, best/worst salience is enough; this should be revisited once live runs produce a materially larger case table.
 
 **Why this matters**: The experiment gate is now not only test-green but externally reviewed before execution. That reduces the chance that the first scheduled live runs will expose avoidable workflow mistakes rather than genuine model behavior.
+
+### 2026-03-11 — Overnight Guided Run Findings and Follow-Up Fix Plan
+
+**Observed overnight result**: The detached overnight schedule completed cleanly. On the 6-case comparison, moving from 2 iterations to 3 iterations increased the mean weighted objective only slightly (`0.0861` -> `0.0876`) while leaving the failure pattern largely unchanged and producing large case-level variance.
+
+**Interpretation**: The overnight batch was operationally useful, but not yet a clean causal comparison. The manifest recorded `seed=42`, yet the live OpenAI-compatible generation path was not forwarding that seed into the actual chat completion request. That means part of the observed difference between 2 and 3 iterations can still come from avoidable sampling variance rather than from the iteration budget alone.
+
+**Fix ordering**: We should fix experiment validity before we harden the detached wrapper further. The immediate change is to pass the generation seed through the live backend request and test that the request surface receives it. After that, the detached launcher can be hardened around tmux session naming, prerequisite checks, separate scheduler/analysis logs, persisted non-secret launch metadata, and explicit status/stop helpers.
+
+**External review**: Gemini CLI reviewed that ordering and agreed with it. Claude CLI was not available in this environment, so we could not obtain the second external review pass from the same machine.

@@ -227,12 +227,14 @@ class OpenAIPromptBackend:
         model: str = DEFAULT_MODEL_NAME,
         temperature: float = 0.3,
         max_tokens: int = 768,
+        seed: int | None = None,
     ) -> None:
         openai_client = _load_openai_client()
         self._client = openai_client(base_url=api_base, api_key="not-needed")
         self._model = model
         self._temperature = temperature
         self._max_tokens = max_tokens
+        self._seed = seed
 
     def generate(self, request: PromptRequest) -> str:
         """Generate one raw response from the configured chat model."""
@@ -244,6 +246,7 @@ class OpenAIPromptBackend:
             ],
             temperature=self._temperature,
             max_tokens=self._max_tokens,
+            seed=self._seed,
         )
         return response.choices[0].message.content or ""
 
@@ -903,6 +906,7 @@ def main(argv: list[str] | None = None) -> int:
     config_payload = {
         "phase": args.phase,
         "seed": args.seed,
+        "generation_seed": args.seed,
         "source_windows_path": to_project_relative(args.source_windows_path, paths.project_root),
         "target_envelopes_path": to_project_relative(
             args.target_envelopes_path, paths.project_root
@@ -953,6 +957,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_backend = OpenAIPromptBackend(
                 api_base=args.api_base,
                 model=args.model,
+                seed=args.seed,
             )
             measurement_backend = CorpusMeasurementBackend(
                 api_base=args.api_base,

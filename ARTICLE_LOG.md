@@ -403,3 +403,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 - scheduler trust-boundary language was added to the README
 
 **For Part 3**: The workflow is now closer to the standard we want before long-running runs begin: test-green, externally reviewed, and explicit about where operational automation starts and stops.
+
+### 2026-03-11 — Part 3 Follow-Up: Determinism and Detached Launch Hardening
+
+**Phase**: Part 3 — Experiment operations and validity repair
+
+**What happened**: After the first live guided runs, we identified a validity gap and an operations gap. The validity gap was that the live OpenAI-compatible baseline path recorded a reconstruction seed in the manifest but did not pass that seed into the generation request. The operations gap was that the overnight launcher worked under tmux but still relied on an ad hoc shell wrapper without persisted launch metadata, split logs, or explicit status/stop helpers.
+
+**Key decision**: Fix the experimental comparison before hardening the automation around it. A more polished launcher is not helpful if the live 2-vs-3-iteration comparison still mixes true iteration effects with avoidable sampling variance.
+
+**For Part 3**: This keeps the narrative disciplined. The third article can describe the guided experiment loop as operationally useful, but it should not overstate what the overnight comparison proves until the seeded live generation path is repaired and rerun under the hardened launcher.
