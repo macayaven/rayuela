@@ -503,3 +503,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: The measured object for this phase is the rewritten passage, not the model's self-explanation. We should keep evidence of the output-contract violation, but we should not let a trailing note pollute the literary score.
 
 **For Part 3**: This gives the article a cleaner methodological claim. When we say a rewrite scored poorly, the reader can trust that we are talking about the passage itself rather than about a markdown-style explanation bolted onto the end of it.
+
+### 2026-03-11 — Part 3 Follow-Up: The Official Spark Nemotron Path
+
+**Phase**: Part 3 — Phase 4 infrastructure alignment
+
+**What happened**: We stopped treating the local Nemotron Nano vLLM workaround as the main direction and re-centered on NVIDIA's own DGX Spark playbook. The repo now includes `src/reconstruction_spark_nemotron.py`, a helper that turns the published Nemotron 3 Nano `llama.cpp` setup into explicit build, download, server, and bounded launchcheck commands.
+
+**Key decision**: The meaningful methodological gain is not merely “try another model.” It is to use the reasoning-aware interface NVIDIA actually documents for Spark, where hidden reasoning and final answer content are separated by design instead of inferred from visible markers.
+
+**For Part 3**: This is a strong behind-the-scenes point for the third article. The same model family can look either chaotic or disciplined depending on the contract through which you talk to it. Picking the right serving surface becomes part of the research method, not just an implementation footnote.

@@ -508,6 +508,68 @@ def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
     assert content == "respuesta final"
 
 
+def test_openai_prompt_backend_strips_visible_reasoning_prefix_in_final_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Completions:
+        @staticmethod
+        def create(**kwargs: object) -> object:
+            del kwargs
+            return type(
+                "_Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "_Choice",
+                            (),
+                            {
+                                "message": type(
+                                    "_Message",
+                                    (),
+                                    {
+                                        "content": (
+                                            "Thinking Process:\n"
+                                            "Primero analizo la tarea y la salida esperada.\n\n"
+                                            "Texto final."
+                                        ),
+                                        "reasoning_content": "razonamiento oculto",
+                                    },
+                                )()
+                            },
+                        )()
+                    ]
+                },
+            )()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        def __init__(self, *, base_url: str, api_key: str) -> None:
+            del base_url, api_key
+            self.chat = _Chat()
+
+    monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
+    backend = reconstruction_baselines.OpenAIPromptBackend(max_tokens=256)
+
+    content = backend.generate(
+        reconstruction_baselines.PromptRequest(
+            case_id="case-1",
+            control_mode="style_shift",
+            iteration_index=0,
+            template_id="style_shift_v2",
+            source_window_id="source:1",
+            target_envelope_id="target:1",
+            system_prompt="system",
+            user_prompt="user",
+            metadata={},
+        )
+    )
+
+    assert content == "Texto final."
+
+
 def test_openai_prompt_backend_fails_when_reasoning_exists_without_final_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -576,6 +638,19 @@ def test_build_argument_parser_exposes_generation_max_tokens() -> None:
     )
 
     assert args.generation_max_tokens == 2048
+
+
+def test_build_argument_parser_exposes_generation_temperature() -> None:
+    args = reconstruction_baselines.build_argument_parser().parse_args(
+        [
+            "--run-id",
+            "phase4-test",
+            "--generation-temperature",
+            "0.0",
+        ]
+    )
+
+    assert args.generation_temperature == 0.0
 
 
 def test_build_argument_parser_exposes_semantic_generation_max_tokens() -> None:
@@ -681,6 +756,16 @@ def test_parse_generated_text_strips_leading_think_block() -> None:
     )
 
     assert parsed == "Texto final."
+
+
+def test_parse_generated_text_strips_visible_reasoning_prefix() -> None:
+    parsed = reconstruction_baselines.parse_generated_text(
+        "Thinking Process:\n"
+        "Pienso en las siguientes operaciones.\n\n"
+        "Texto final que quiero."
+    )
+
+    assert parsed == "Texto final que quiero."
 
 
 def test_parse_generated_text_strips_obvious_meta_suffix() -> None:

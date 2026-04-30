@@ -200,3 +200,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: `src/reconstruction_baselines.py` now trims obvious post-passage meta-commentary markers such as `Nota:`, `Note:`, `Explicación:`, `Commentary:`, `Justificación:`, `Cambios realizados:`, and `Changes made:` after normalization. The saved iteration record keeps audit fields indicating whether a visible meta suffix was trimmed and which marker triggered it. The Phase 4 summary/report also exposes a per-control trimmed-case count.
 
 **Why this matters**: This is a low-complexity way to keep the measured object aligned with the research target. We still record that the model violated the output contract, but we no longer let an explanatory suffix dominate the score or the close-reading sample.
+
+### 2026-03-11 — Official Spark Nemotron Lane Reframed Around llama.cpp
+
+**Decision**: The clean official Nemotron reasoning-control lane for this workstation is not the local Nano-vLLM plugin experiment. It is the DGX Spark playbook path based on Nemotron 3 Nano through `llama.cpp`.
+
+**Implementation**: Added `src/reconstruction_spark_nemotron.py` to codify the published Spark commands into a testable helper that can print the build/bootstrap steps, install the dedicated Hugging Face CLI venv, clone and compile `llama.cpp` for `SM_121`, download the official GGUF artifact, and write a bounded Phase 4 launchcheck plan targeting the local OpenAI-compatible endpoint. The dead-end `vllm-nemotron-nano` compose service was removed so the repo no longer presents that experimental workaround as a first-class path.
+
+**Why this matters**: This reduces methodological ambiguity. If we test Nemotron as a reasoning-aware generation lane on DGX Spark, we should do it through the surface NVIDIA actually documents for Spark rather than through a fragile local adaptation that already proved too heavy and slow for the current box. That keeps the added complexity justified by a clearer experiment contract.

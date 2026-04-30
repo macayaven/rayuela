@@ -83,6 +83,19 @@ docker compose --profile llm-nemotron up vllm-nemotron
 - `vllm-nemotron` serves the Nemotron replication model on port `8000` and should not run at the same time as `vllm`.
 - The tracked Qwen vLLM command includes `--reasoning-parser qwen3`, which keeps Qwen reasoning enabled while separating `reasoning_content` from final `content`.
 
+For the official DGX Spark Nemotron reasoning lane, use the helper in
+[`src/reconstruction_spark_nemotron.py`](src/reconstruction_spark_nemotron.py)
+instead of Docker Compose. That path follows NVIDIA's published Spark playbook
+for Nemotron 3 Nano via `llama.cpp`, which is currently the cleanest official
+reasoning-control surface for this workstation.
+
+```bash
+.venv/bin/python src/reconstruction_spark_nemotron.py print-commands
+```
+
+The helper prints the exact build, model-download, server, and launchcheck-plan
+commands so the Spark-specific path stays explicit and reproducible.
+
 ## Common Commands
 
 ```bash
@@ -274,6 +287,13 @@ The default rewrite templates are now `style_shift_v2` / `revise_v2`. They keep 
 enabled but tighten the visible-output contract by explicitly requiring the first visible character
 to belong to the passage itself, with no headings, labels, markdown, or explanatory text.
 
+For the official DGX Spark Nemotron lane, use
+[`src/reconstruction_spark_nemotron.py`](src/reconstruction_spark_nemotron.py)
+to prepare a bounded `llama.cpp` launchcheck against the OpenAI-compatible API
+that NVIDIA documents for Nemotron 3 Nano. This keeps the reasoning-control
+surface aligned with Spark guidance instead of relying on ad hoc visible-marker
+scraping.
+
 Primary outputs:
 
 - `outputs/reconstruction/runs/<run_id>/prompt_baseline_cases.json`
@@ -463,6 +483,28 @@ A ready-to-edit example lives at
 Treat scheduler plan files as trusted executable specifications: the scheduler
 passes the declared command directly to `subprocess.run()` and does not sandbox
 or validate contributor-authored plans.
+
+For an unattended Qwen hidden-reasoning batch bounded to roughly 10 hours, use
+[`plans/reconstruction_guided_schedule.autonomous-10h-20260430.json`](plans/reconstruction_guided_schedule.autonomous-10h-20260430.json).
+It runs seeded 1-, 2-, and 3-iteration comparisons over the same first four
+pilot cases, then spends the remaining budget on a 6-case 2-iteration
+confirmation run. Launch it only when the Qwen parser-enabled endpoint is
+already serving at `http://localhost:8000/v1`:
+
+```bash
+scripts/launch_reconstruction_schedule.sh \
+  --plan-path plans/reconstruction_guided_schedule.autonomous-10h-20260430.json \
+  --wandb-project rayuela \
+  --wandb-mode offline
+
+scripts/status_reconstruction_schedule.sh \
+  --schedule-id guided-phase4-autonomous-10h-20260430a
+```
+
+The launcher automatically runs Phase 6 analysis with
+`--schedule-run-selection nonfailed` after the scheduler finishes, so the
+article-facing output should be read from the schedule analysis directory rather
+than reconstructed manually from individual run folders.
 
 ## Corpus Extension
 

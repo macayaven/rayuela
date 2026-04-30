@@ -2,13 +2,11 @@
 # 1. rayuela: analysis environment (embeddings, TDA, visualization, JupyterLab)
 # 2. vllm: Qwen 3.5 27B for Scale B semantic extraction
 # 3. vllm-nemotron: Nemotron 70B for Scale B replication (inter-rater reliability)
-# 4. vllm-nemotron-nano: Official NVIDIA Nemotron 3 Nano reasoning lane
 #
 # Usage:
 #   docker compose up rayuela                      # analysis only (most sessions)
 #   docker compose --profile llm up vllm           # Qwen 3.5 for Scale B
 #   docker compose --profile llm-nemotron up vllm-nemotron  # Nemotron 70B for replication
-#   docker compose --profile llm-nemotron-nano up vllm-nemotron-nano  # Official Nemotron 3 Nano
 #   docker compose up                              # all non-profiled services
 
 services:
@@ -110,50 +108,6 @@ services:
       --max-num-seqs 4
     profiles:
       - llm-nemotron  # docker compose --profile llm-nemotron up vllm-nemotron
-
-  vllm-nemotron-nano:
-    image: vllm/vllm-openai:cu130-nightly-aarch64
-    runtime: nvidia
-    network_mode: host
-    ipc: host
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    shm_size: "32g"
-    volumes:
-      - vllm-models:/root/.cache/huggingface
-    environment:
-      - HF_TOKEN=${HF_TOKEN}
-      # Official NVIDIA recipe enables FlashInfer FP8 kernels for the FP8 Nano release.
-      - VLLM_USE_FLASHINFER_MOE_FP8=1
-    entrypoint:
-      - /bin/bash
-      - -lc
-    # Official NVIDIA Nemotron 3 Nano vLLM path:
-    # https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-nano-30b-a3b
-    # Adapted to the local single-GPU envelope by reducing context, concurrency,
-    # and requested memory while preserving the official parser/plugin path.
-    # NOTE: Uses the same host port 8000 as the other vLLM services.
-    command:
-      - >-
-        python3 -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8/resolve/main/nano_v3_reasoning_parser.py', '/tmp/nano_v3_reasoning_parser.py')" ;
-        exec vllm serve nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8
-        --max-num-seqs 4
-        --tensor-parallel-size 1
-        --max-model-len 32768
-        --gpu-memory-utilization 0.65
-        --port 8000
-        --trust-remote-code
-        --tool-call-parser qwen3_coder
-        --reasoning-parser-plugin /tmp/nano_v3_reasoning_parser.py
-        --reasoning-parser nano_v3
-        --kv-cache-dtype fp8
-    profiles:
-      - llm-nemotron-nano  # docker compose --profile llm-nemotron-nano up vllm-nemotron-nano
 
 volumes:
   vllm-models:

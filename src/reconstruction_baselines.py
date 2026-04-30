@@ -21,7 +21,10 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from openai_response_utils import extract_final_message_content
+from openai_response_utils import (
+    extract_final_message_content,
+    strip_visible_reasoning_prefix,
+)
 from project_config import CORPUS_DIR, CORPUS_OUTPUT_DIR
 from reconstruction_contract import (
     DEFAULT_RECONSTRUCTION_SEED,
@@ -564,7 +567,7 @@ def _strip_visible_meta_suffix(text: str) -> ParsedGeneration:
 
 def normalize_generated_text(raw_response: str) -> ParsedGeneration:
     """Normalize raw model output and track obvious output-contract violations."""
-    text = raw_response.strip()
+    text = strip_visible_reasoning_prefix(raw_response)
     lowered = text.lower()
     if lowered.startswith("<think>") and "</think>" in lowered:
         closing_index = lowered.rfind("</think>")
@@ -966,6 +969,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-base", default=VLLM_API_BASE)
     parser.add_argument("--model", default=DEFAULT_MODEL_NAME)
     parser.add_argument(
+        "--generation-temperature",
+        type=float,
+        default=0.3,
+        help="Sampling temperature for prompt-generation calls.",
+    )
+    parser.add_argument(
         "--generation-max-tokens",
         type=int,
         default=768,
@@ -1010,6 +1019,7 @@ def main(argv: list[str] | None = None) -> int:
         "dry_run": args.dry_run,
         "api_base": args.api_base,
         "model": args.model,
+        "generation_temperature": args.generation_temperature,
         "generation_max_tokens": args.generation_max_tokens,
         "semantic_generation_max_tokens": args.semantic_generation_max_tokens,
         "reasoning_parser": args.reasoning_parser,
@@ -1050,6 +1060,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_backend = OpenAIPromptBackend(
                 api_base=args.api_base,
                 model=args.model,
+                temperature=args.generation_temperature,
                 max_tokens=args.generation_max_tokens,
                 seed=args.seed,
             )
