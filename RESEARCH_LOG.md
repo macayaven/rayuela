@@ -208,3 +208,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: Added `src/reconstruction_spark_nemotron.py` to codify the published Spark commands into a testable helper that can print the build/bootstrap steps, install the dedicated Hugging Face CLI venv, clone and compile `llama.cpp` for `SM_121`, download the official GGUF artifact, and write a bounded Phase 4 launchcheck plan targeting the local OpenAI-compatible endpoint. The dead-end `vllm-nemotron-nano` compose service was removed so the repo no longer presents that experimental workaround as a first-class path.
 
 **Why this matters**: This reduces methodological ambiguity. If we test Nemotron as a reasoning-aware generation lane on DGX Spark, we should do it through the surface NVIDIA actually documents for Spark rather than through a fragile local adaptation that already proved too heavy and slow for the current box. That keeps the added complexity justified by a clearer experiment contract.
+
+### 2026-04-30 — Unattended Fast-Signal Nemotron Schedule
+
+**Decision**: Start the unattended run on the healthy Spark Nemotron `llama.cpp` endpoint at `http://localhost:30000/v1` instead of waiting for the Qwen endpoint. At launch time, port `8000` was occupied by a failing vLLM vision container that reset `/v1/models`, while the Nemotron server returned a valid model list for `Nemotron-3-Nano-30B-A3B-UD-Q8_K_XL.gguf`.
+
+**Runtime fact**: A direct 16-token chat probe returned hidden reasoning but no final content; the same probe with 256 completion tokens returned final `content`. This confirms that the generation budget is an execution-contract variable for the `llama.cpp` reasoning lane, not a cosmetic setting.
+
+**Plan**: `plans/reconstruction_guided_schedule.nemotron-fast-20260430.json` starts with a 1-case/1-iteration launchcheck, then 2-case 1-vs-2 iteration comparisons, then a 4-case 2-iteration confirmation, with a 4-case 3-iteration optional tail if the earlier runs finish inside the budget. The first useful artifact should be `outputs/reconstruction/runs/phase4-nemotron-fast-20260430a/prompt_baseline_summary.json`.
+
+**Why this matters**: The schedule is optimized for early evidence rather than maximum batch size. It should reveal quickly whether the hidden-reasoning contract produces scoreable rewritten passages before spending the rest of the night on broader comparison.

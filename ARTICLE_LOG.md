@@ -513,3 +513,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: The meaningful methodological gain is not merely “try another model.” It is to use the reasoning-aware interface NVIDIA actually documents for Spark, where hidden reasoning and final answer content are separated by design instead of inferred from visible markers.
 
 **For Part 3**: This is a strong behind-the-scenes point for the third article. The same model family can look either chaotic or disciplined depending on the contract through which you talk to it. Picking the right serving surface becomes part of the research method, not just an implementation footnote.
+
+### 2026-04-30 — Part 3 Unattended Run: Fast Signal First
+
+**Phase**: Part 3 — Phase 4 live experiment execution
+
+**What happened**: Before launching the unattended session, the runtime check found that the Qwen endpoint on port `8000` was not usable, but the Spark Nemotron `llama.cpp` endpoint on port `30000` was healthy. A tiny probe also showed the central failure mode clearly: too small a token budget produced hidden reasoning without final content, while a larger budget produced the final answer.
+
+**Key decision**: The session should start with the healthy Nemotron lane and use a fast-first-signal schedule: 1 case / 1 iteration first, then small paired iteration comparisons, then broader confirmation only if time remains.
+
+**For Part 3**: This gives the article a concrete methodological beat: the experiment is no longer just about model choice, but about the contract between reasoning, token budget, and the measurable literary artifact. The first question is whether the system can reliably produce a clean passage at all.
