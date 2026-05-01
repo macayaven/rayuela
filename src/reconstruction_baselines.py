@@ -292,8 +292,7 @@ class OpenAIPromptBackend:
         return extract_final_message_content(
             response.choices[0].message,
             context=(
-                "prompt generation "
-                f"for case {request.case_id} iteration {request.iteration_index}"
+                f"prompt generation for case {request.case_id} iteration {request.iteration_index}"
             ),
         )
 
@@ -730,15 +729,12 @@ def build_score_history(
         length_component = clamp01(length_max / length_ratio)
 
     lexical_overlap_pass = (
-        lexical_controls.token_jaccard
-        >= success_criteria.lexical_guardrails["token_jaccard_min"]
+        lexical_controls.token_jaccard >= success_criteria.lexical_guardrails["token_jaccard_min"]
         and lexical_controls.normalized_edit_similarity
         >= success_criteria.lexical_guardrails["normalized_edit_similarity_min"]
     )
     lexical_component = (
-        clamp01(1.0 - lexical_controls.normalized_edit_similarity)
-        if lexical_overlap_pass
-        else 0.0
+        clamp01(1.0 - lexical_controls.normalized_edit_similarity) if lexical_overlap_pass else 0.0
     )
 
     weights = success_criteria.objective_weights
@@ -930,8 +926,7 @@ def _summary_by_control(
     for control_mode in sorted(set(grouped) | set(failure_counts)):
         items = grouped.get(control_mode, [])
         objectives = [
-            float(item.final_iteration.score_history["weighted_objective"])
-            for item in items
+            float(item.final_iteration.score_history["weighted_objective"]) for item in items
         ]
         meta_trim_count = sum(
             1 for item in items if item.final_iteration.visible_meta_suffix_trimmed
@@ -994,9 +989,7 @@ def write_baseline_artifacts(
     if failures:
         report_lines.extend(["", "## Case Failures", ""])
         for failure in failures:
-            report_lines.append(
-                f"- `{failure.case.case_id}`: {failure.error_message}"
-            )
+            report_lines.append(f"- `{failure.case.case_id}`: {failure.error_message}")
 
     cases_path.write_text(
         json.dumps(cases_payload, ensure_ascii=False, indent=2) + "\n",
@@ -1051,8 +1044,7 @@ def build_style_shift_cases(
             cases.append(
                 BaselineCase(
                     case_id=(
-                        f"style_shift:{source_window.window_id}:"
-                        f"{target_envelope.envelope_id}"
+                        f"style_shift:{source_window.window_id}:{target_envelope.envelope_id}"
                     ),
                     control_mode="style_shift",
                     source_window=source_window,
@@ -1155,6 +1147,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     write_run_manifest(manifest, paths=paths)
 
+    cases_path = run_dir / "prompt_baseline_cases.json"
+    summary_path = run_dir / "prompt_baseline_summary.json"
+    report_path = run_dir / "prompt_baseline_report.md"
+    results: list[BaselineCaseResult] = []
+    case_failures: list[BaselineCaseFailure] = []
+
     try:
         source_windows = load_source_windows(args.source_windows_path)
         target_envelopes = load_target_envelopes(args.target_envelopes_path)
@@ -1187,8 +1185,6 @@ def main(argv: list[str] | None = None) -> int:
                 semantic_max_tokens=args.semantic_generation_max_tokens,
             )
 
-        results: list[BaselineCaseResult] = []
-        case_failures: list[BaselineCaseFailure] = []
         initial_template_id = default_prompt_templates()["style_shift"].template_id
         for case in cases:
             try:
@@ -1211,9 +1207,13 @@ def main(argv: list[str] | None = None) -> int:
                         error_message=str(exc),
                     )
                 )
-        cases_path = run_dir / "prompt_baseline_cases.json"
-        summary_path = run_dir / "prompt_baseline_summary.json"
-        report_path = run_dir / "prompt_baseline_report.md"
+            write_baseline_artifacts(
+                results=results,
+                case_failures=case_failures,
+                cases_path=cases_path,
+                summary_path=summary_path,
+                report_path=report_path,
+            )
         write_baseline_artifacts(
             results=results,
             case_failures=case_failures,
@@ -1222,6 +1222,21 @@ def main(argv: list[str] | None = None) -> int:
             report_path=report_path,
         )
         finalize_run_manifest(args.run_id, RunStatus.COMPLETED, paths=paths)
+    except KeyboardInterrupt:
+        write_baseline_artifacts(
+            results=results,
+            case_failures=case_failures,
+            cases_path=cases_path,
+            summary_path=summary_path,
+            report_path=report_path,
+        )
+        finalize_run_manifest(
+            args.run_id,
+            RunStatus.FAILED,
+            paths=paths,
+            error_message="interrupted; partial prompt-baseline artifacts were written",
+        )
+        raise
     except Exception as exc:
         finalize_run_manifest(
             args.run_id,
