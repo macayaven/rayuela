@@ -533,3 +533,5 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: Treat that as a runner robustness problem before drawing a broad model-quality conclusion. The Phase 4 runner now preserves partial evidence: first-iteration failures are logged as case failures, and revision failures keep the best previously scored iteration instead of crashing the whole run.
 
 **For Part 3**: This is useful article material because it separates three layers that are easy to confuse: serving works, the prompt contract is still fragile, and the actual literary quality of the one scored passage is weak. The next retry can test quality without losing the batch to one missing final answer.
+
+**Follow-up**: The first retry made the same lesson sharper: even a one-case launchcheck can fail before producing final content. The runner now persists that all-failure state as evidence with a zero metric instead of treating it as invisible infrastructure noise.

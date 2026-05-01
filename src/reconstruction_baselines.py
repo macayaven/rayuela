@@ -853,14 +853,23 @@ def run_prompt_case(
     )
 
 
-def _summary_by_control(results: list[BaselineCaseResult]) -> dict[str, dict[str, Any]]:
+def _summary_by_control(
+    results: list[BaselineCaseResult],
+    case_failures: list[BaselineCaseFailure] | None = None,
+) -> dict[str, dict[str, Any]]:
     """Summarize case results by control mode."""
     grouped: dict[str, list[BaselineCaseResult]] = {}
     for result in results:
         grouped.setdefault(result.case.control_mode, []).append(result)
+    failure_counts: dict[str, int] = {}
+    for failure in case_failures or []:
+        failure_counts[failure.case.control_mode] = (
+            failure_counts.get(failure.case.control_mode, 0) + 1
+        )
 
     summary: dict[str, dict[str, Any]] = {}
-    for control_mode, items in grouped.items():
+    for control_mode in sorted(set(grouped) | set(failure_counts)):
+        items = grouped.get(control_mode, [])
         objectives = [
             float(item.final_iteration.score_history["weighted_objective"])
             for item in items
@@ -870,8 +879,9 @@ def _summary_by_control(results: list[BaselineCaseResult]) -> dict[str, dict[str
         )
         summary[control_mode] = {
             "count": len(items),
-            "mean_weighted_objective": float(np.mean(objectives)),
-            "median_weighted_objective": float(np.median(objectives)),
+            "failed_case_count": failure_counts.get(control_mode, 0),
+            "mean_weighted_objective": float(np.mean(objectives)) if objectives else 0.0,
+            "median_weighted_objective": float(np.median(objectives)) if objectives else 0.0,
             "meta_suffix_trimmed_case_count": meta_trim_count,
             "stop_reasons": sorted({item.stop_reason for item in items}),
         }
@@ -901,7 +911,7 @@ def write_baseline_artifacts(
         "generated_at": utc_now(),
         "total_cases": len(results),
         "failed_cases": len(failures),
-        "controls": _summary_by_control(results),
+        "controls": _summary_by_control(results, failures),
     }
     report_lines = [
         "# Phase 4 Prompt Baseline Report",
@@ -918,6 +928,7 @@ def write_baseline_artifacts(
             f"- `{control_mode}`: count={stats['count']}, "
             f"mean weighted objective={stats['mean_weighted_objective']:.4f}, "
             f"median weighted objective={stats['median_weighted_objective']:.4f}, "
+            f"failed cases={stats['failed_case_count']}, "
             f"meta suffix trimmed cases={stats['meta_suffix_trimmed_case_count']}, "
             f"stop reasons={', '.join(stats['stop_reasons'])}"
         )
@@ -1141,11 +1152,6 @@ def main(argv: list[str] | None = None) -> int:
                         error_message=str(exc),
                     )
                 )
-        if not results:
-            raise RuntimeError(
-                f"no scoreable cases completed; {len(case_failures)} cases failed"
-            )
-
         cases_path = run_dir / "prompt_baseline_cases.json"
         summary_path = run_dir / "prompt_baseline_summary.json"
         report_path = run_dir / "prompt_baseline_report.md"

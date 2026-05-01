@@ -335,7 +335,35 @@ def test_case_failures_are_saved_separately_from_scoreable_results(tmp_path: Pat
     assert len(cases_payload["case_failures"]) == 1
     assert summary_payload["total_cases"] == 1
     assert summary_payload["failed_cases"] == 1
+    assert summary_payload["controls"]["style_shift"]["failed_case_count"] == 1
     assert "Case Failures" in report_path.read_text(encoding="utf-8")
+
+
+def test_all_failed_cases_still_publish_zero_metric_summary(tmp_path: Path) -> None:
+    failure = reconstruction_baselines.BaselineCaseFailure(
+        case=_baseline_case(),
+        prompt_template_id="style_shift_v2",
+        error_message="model returned reasoning without final content",
+    )
+    cases_path = tmp_path / "cases.json"
+    summary_path = tmp_path / "summary.json"
+    report_path = tmp_path / "report.md"
+
+    reconstruction_baselines.write_baseline_artifacts(
+        results=[],
+        case_failures=[failure],
+        cases_path=cases_path,
+        summary_path=summary_path,
+        report_path=report_path,
+    )
+
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    assert summary_payload["total_cases"] == 0
+    assert summary_payload["failed_cases"] == 1
+    assert summary_payload["controls"]["style_shift"]["count"] == 0
+    assert summary_payload["controls"]["style_shift"]["failed_case_count"] == 1
+    assert summary_payload["controls"]["style_shift"]["mean_weighted_objective"] == 0.0
 
 
 def test_revision_loop_improves_weighted_objective_or_stops_cleanly() -> None:
