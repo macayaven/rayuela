@@ -310,6 +310,15 @@ Phase 5 adds [`src/reconstruction_train.py`](src/reconstruction_train.py) and
 [`src/reconstruction_infer.py`](src/reconstruction_infer.py) to prepare the
 training envelope before real adapter fine-tuning.
 
+The DGX Spark adapter path follows the official NVIDIA PyTorch/Unsloth playbooks
+with Rayuela-specific run contracts; see
+[`plans/phase5_dgx_spark_finetune_playbook.md`](plans/phase5_dgx_spark_finetune_playbook.md).
+For an interactive DGX Spark fine-tuning container:
+
+```bash
+scripts/bootstrap_dgx_spark_finetune.sh pytorch
+```
+
 The modules provide:
 
 - deterministic `identity_smoke` and `contract_smoke` dataset assembly from the locked pilot split
