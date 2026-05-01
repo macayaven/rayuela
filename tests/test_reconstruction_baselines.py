@@ -942,9 +942,7 @@ def test_parse_generated_text_strips_leading_think_block() -> None:
 
 def test_parse_generated_text_strips_visible_reasoning_prefix() -> None:
     parsed = reconstruction_baselines.parse_generated_text(
-        "Thinking Process:\n"
-        "Pienso en las siguientes operaciones.\n\n"
-        "Texto final que quiero."
+        "Thinking Process:\nPienso en las siguientes operaciones.\n\nTexto final que quiero."
     )
 
     assert parsed == "Texto final que quiero."

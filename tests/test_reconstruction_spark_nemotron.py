@@ -20,10 +20,7 @@ def test_default_paths_follow_spark_playbook() -> None:
     assert config.semantic_generation_max_tokens == 3072
     assert config.llama_server_path == Path.home() / "llama.cpp" / "build" / "bin" / "llama-server"
     assert config.model_path == (
-        Path.home()
-        / "models"
-        / "nemotron3-gguf"
-        / "Nemotron-3-Nano-30B-A3B-UD-Q8_K_XL.gguf"
+        Path.home() / "models" / "nemotron3-gguf" / "Nemotron-3-Nano-30B-A3B-UD-Q8_K_XL.gguf"
     )
 
 
@@ -94,10 +91,7 @@ def test_write_launchcheck_plan_targets_llamacpp_api_base(tmp_path: Path) -> Non
     assert command[command.index("--generation-temperature") + 1] == "0.0"
     assert command[command.index("--generation-max-tokens") + 1] == "4096"
     assert command[command.index("--semantic-generation-max-tokens") + 1] == "3072"
-    assert (
-        command[command.index("--model") + 1]
-        == "Nemotron-3-Nano-30B-A3B-UD-Q8_K_XL.gguf"
-    )
+    assert command[command.index("--model") + 1] == "Nemotron-3-Nano-30B-A3B-UD-Q8_K_XL.gguf"
     assert command[command.index("--reasoning-parser") + 1] == "llamacpp"
 
 
