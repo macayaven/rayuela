@@ -345,6 +345,15 @@ Primary outputs:
 - `outputs/reconstruction/runs/<run_id>/training_dataset/{train,val,test}.jsonl`
 - `outputs/reconstruction/runs/<run_id>/checkpoint_metadata.json`
 
+Style-transfer adapter work starts by distilling scored Phase 4 teacher
+generations into supervised JSONL examples. The generated passages remain under
+ignored `outputs/`; tracked files only contain the code and plan:
+
+```bash
+python3 src/reconstruction_style_distill.py --dataset-id phase5-style-distill --teacher-cases-path outputs/reconstruction/runs/<teacher_run>/prompt_baseline_cases.json --min-weighted-objective 0.14
+python3 src/reconstruction_train.py --run-id phase5-style-distilled-scaffold --dataset-mode style_transfer_distilled --training-dataset-dir outputs/reconstruction/style_distill/phase5-style-distill/training_dataset
+```
+
 Contract probes for LoRA adapters should run inside the same pinned DGX Spark
 container lane:
 
