@@ -523,3 +523,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: The session should start with the healthy Nemotron lane and use a fast-first-signal schedule: 1 case / 1 iteration first, then small paired iteration comparisons, then broader confirmation only if time remains.
 
 **For Part 3**: This gives the article a concrete methodological beat: the experiment is no longer just about model choice, but about the contract between reasoning, token budget, and the measurable literary artifact. The first question is whether the system can reliably produce a clean passage at all.
+
+### 2026-05-01 — Part 3 Follow-Up: Viable Lane, Brittle Runner
+
+**Phase**: Part 3 — Phase 4 live experiment repair
+
+**What happened**: The unattended Nemotron schedule gave a clear split result. The 1-case launchcheck produced a clean passage with no visible reasoning leak, but the larger runs failed when Nemotron spent the response in hidden reasoning and never emitted final content for one case or revision.
+
+**Key decision**: Treat that as a runner robustness problem before drawing a broad model-quality conclusion. The Phase 4 runner now preserves partial evidence: first-iteration failures are logged as case failures, and revision failures keep the best previously scored iteration instead of crashing the whole run.
+
+**For Part 3**: This is useful article material because it separates three layers that are easy to confuse: serving works, the prompt contract is still fragile, and the actual literary quality of the one scored passage is weak. The next retry can test quality without losing the batch to one missing final answer.

@@ -196,6 +196,7 @@ class BaselineCaseResult:
     best_iteration_index: int
     stop_reason: str
     used_training_examples: bool
+    error_message: str | None = None
 
     @property
     def final_iteration(self) -> IterationRecord:
@@ -211,6 +212,24 @@ class BaselineCaseResult:
             "best_iteration_index": self.best_iteration_index,
             "stop_reason": self.stop_reason,
             "used_training_examples": self.used_training_examples,
+            "error_message": self.error_message,
+        }
+
+
+@dataclass(frozen=True)
+class BaselineCaseFailure:
+    """Failure record for a case that never produced a scoreable iteration."""
+
+    case: BaselineCase
+    prompt_template_id: str
+    error_message: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation."""
+        return {
+            "case": self.case.to_dict(),
+            "prompt_template_id": self.prompt_template_id,
+            "error_message": self.error_message,
         }
 
 
@@ -438,7 +457,8 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
                 "the prose toward the requested stylistic envelope. The first visible character "
                 "of your answer must be the first character of the rewritten passage. Do not "
                 "output headings, labels, markdown, XML tags, quotes, or explanations. Output "
-                "only the rewritten passage."
+                "only the rewritten passage. Keep any private reasoning short and reserve most "
+                "of the completion budget for the final passage."
             ),
             user_prompt=(
                 "Source passage:\n{source_text}\n\n"
@@ -447,7 +467,7 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
                 "Rewrite the source passage in Spanish so that it preserves content while "
                 "moving toward the target style envelope. Keep the output close in length. "
                 "Return exactly one rewritten passage and begin immediately with the passage "
-                "itself."
+                "itself. Do not explain the transformation before or after the passage."
             ),
         ),
         "identity": PromptTemplate(
@@ -479,7 +499,8 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
                 "private. Preserve semantic content, improve the target style fit, and respect "
                 "the requested length guardrails. The first visible character of your answer "
                 "must be the first character of the revised passage. Output only the revised "
-                "passage."
+                "passage. Keep any private reasoning short and reserve most of the completion "
+                "budget for the final passage."
             ),
             user_prompt=(
                 "Original source passage:\n{source_text}\n\n"
@@ -489,7 +510,8 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
                 "Current score feedback:\n{feedback}\n\n"
                 "Revise the current rewrite to improve the weighted objective while preserving "
                 "the scene and staying close in length. Return exactly one revised passage and "
-                "begin immediately with the passage itself."
+                "begin immediately with the passage itself. Do not explain the revision before "
+                "or after the passage."
             ),
         ),
     }
@@ -758,7 +780,21 @@ def run_prompt_case(
                 candidate_text=prior_candidate,
                 prior_score_history=prior_history,
             )
-            raw_response = prompt_backend.generate(request)
+            try:
+                raw_response = prompt_backend.generate(request)
+            except Exception as exc:
+                if not iterations:
+                    raise
+                stop_reason = "prompt_generation_failed"
+                return BaselineCaseResult(
+                    case=case,
+                    prompt_template_id=initial_template.template_id,
+                    iterations=tuple(iterations),
+                    best_iteration_index=best_iteration_index,
+                    stop_reason=stop_reason,
+                    used_training_examples=case.uses_training_examples,
+                    error_message=str(exc),
+                )
 
         normalized_output = normalize_generated_text(raw_response)
         parsed_text = normalized_output.text or case.source_window.text
@@ -845,6 +881,7 @@ def _summary_by_control(results: list[BaselineCaseResult]) -> dict[str, dict[str
 def write_baseline_artifacts(
     *,
     results: list[BaselineCaseResult],
+    case_failures: list[BaselineCaseFailure] | None = None,
     cases_path: Path,
     summary_path: Path,
     report_path: Path,
@@ -854,13 +891,16 @@ def write_baseline_artifacts(
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
+    failures = case_failures or []
     cases_payload = {
         "generated_at": utc_now(),
         "results": [result.to_dict() for result in results],
+        "case_failures": [failure.to_dict() for failure in failures],
     }
     summary_payload: dict[str, Any] = {
         "generated_at": utc_now(),
         "total_cases": len(results),
+        "failed_cases": len(failures),
         "controls": _summary_by_control(results),
     }
     report_lines = [
@@ -868,6 +908,7 @@ def write_baseline_artifacts(
         "",
         f"Generated at: {summary_payload['generated_at']}",
         f"Total cases: {summary_payload['total_cases']}",
+        f"Failed cases: {summary_payload['failed_cases']}",
         "",
         "## Control Summary",
         "",
@@ -880,6 +921,12 @@ def write_baseline_artifacts(
             f"meta suffix trimmed cases={stats['meta_suffix_trimmed_case_count']}, "
             f"stop reasons={', '.join(stats['stop_reasons'])}"
         )
+    if failures:
+        report_lines.extend(["", "## Case Failures", ""])
+        for failure in failures:
+            report_lines.append(
+                f"- `{failure.case.case_id}`: {failure.error_message}"
+            )
 
     cases_path.write_text(
         json.dumps(cases_payload, ensure_ascii=False, indent=2) + "\n",
@@ -1070,24 +1117,41 @@ def main(argv: list[str] | None = None) -> int:
                 semantic_max_tokens=args.semantic_generation_max_tokens,
             )
 
-        results = [
-            run_prompt_case(
-                case=case,
-                prompt_backend=prompt_backend,
-                measurement_backend=measurement_backend,
-                stylometric_baseline=baselines.stylometric,
-                semantic_baseline=baselines.semantic,
-                success_criteria=success_criteria,
-                max_iterations=args.max_iterations,
+        results: list[BaselineCaseResult] = []
+        case_failures: list[BaselineCaseFailure] = []
+        initial_template_id = default_prompt_templates()["style_shift"].template_id
+        for case in cases:
+            try:
+                results.append(
+                    run_prompt_case(
+                        case=case,
+                        prompt_backend=prompt_backend,
+                        measurement_backend=measurement_backend,
+                        stylometric_baseline=baselines.stylometric,
+                        semantic_baseline=baselines.semantic,
+                        success_criteria=success_criteria,
+                        max_iterations=args.max_iterations,
+                    )
+                )
+            except Exception as exc:
+                case_failures.append(
+                    BaselineCaseFailure(
+                        case=case,
+                        prompt_template_id=initial_template_id,
+                        error_message=str(exc),
+                    )
+                )
+        if not results:
+            raise RuntimeError(
+                f"no scoreable cases completed; {len(case_failures)} cases failed"
             )
-            for case in cases
-        ]
 
         cases_path = run_dir / "prompt_baseline_cases.json"
         summary_path = run_dir / "prompt_baseline_summary.json"
         report_path = run_dir / "prompt_baseline_report.md"
         write_baseline_artifacts(
             results=results,
+            case_failures=case_failures,
             cases_path=cases_path,
             summary_path=summary_path,
             report_path=report_path,

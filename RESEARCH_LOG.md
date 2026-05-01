@@ -218,3 +218,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Plan**: `plans/reconstruction_guided_schedule.nemotron-fast-20260430.json` starts with a 1-case/1-iteration launchcheck, then 2-case 1-vs-2 iteration comparisons, then a 4-case 2-iteration confirmation, with a 4-case 3-iteration optional tail if the earlier runs finish inside the budget. The first useful artifact should be `outputs/reconstruction/runs/phase4-nemotron-fast-20260430a/prompt_baseline_summary.json`.
 
 **Why this matters**: The schedule is optimized for early evidence rather than maximum batch size. It should reveal quickly whether the hidden-reasoning contract produces scoreable rewritten passages before spending the rest of the night on broader comparison.
+
+### 2026-05-01 — Nemotron Schedule Result and Retry Fix
+
+**Observed result**: `guided-phase4-nemotron-fast-20260430a` completed quickly. The 1-case launchcheck succeeded with mean weighted objective `0.1581` and no visible reasoning leak, but all larger experiments failed because the model sometimes returned hidden reasoning without final `content`.
+
+**Interpretation**: The Spark Nemotron lane is viable enough to produce a clean scoreable passage, but the Phase 4 runner was too brittle: one first-iteration generation failure crashed the whole run, and one revision failure discarded the already scored first iteration.
+
+**Implementation**: Phase 4 now records first-iteration case failures separately under `case_failures` and continues the remaining cases when at least one case is scoreable. If a revision generation fails after an earlier scoreable iteration, the run preserves the best previous iteration with `stop_reason=prompt_generation_failed` and stores the error message. The prompts also now tell the model to keep private reasoning short and reserve most of the completion budget for the final passage.
+
+**Next retry**: `plans/reconstruction_guided_schedule.nemotron-fast-retry-20260501.json` repeats the fast-signal shape with fresh immutable run IDs so we can distinguish model quality failures from runner brittleness.

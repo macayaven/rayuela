@@ -94,6 +94,19 @@ class StubPromptBackend:
         return self._responses[len(self.requests) - 1]
 
 
+class FailingPromptBackend:
+    def __init__(self, responses: list[str], *, fail_at: int) -> None:
+        self._responses = responses
+        self._fail_at = fail_at
+        self.requests: list[reconstruction_baselines.PromptRequest] = []
+
+    def generate(self, request: reconstruction_baselines.PromptRequest) -> str:
+        self.requests.append(request)
+        if len(self.requests) - 1 == self._fail_at:
+            raise RuntimeError("model returned reasoning without final content")
+        return self._responses[len(self.requests) - 1]
+
+
 class StubMeasurementBackend:
     def __init__(
         self,
@@ -264,6 +277,67 @@ def test_iteration_history_is_saved(tmp_path: Path) -> None:
     assert "weighted objective" in report_path.read_text(encoding="utf-8").lower()
 
 
+def test_case_failures_are_saved_separately_from_scoreable_results(tmp_path: Path) -> None:
+    result = reconstruction_baselines.BaselineCaseResult(
+        case=_baseline_case(),
+        prompt_template_id="style_shift_v2",
+        iterations=(
+            reconstruction_baselines.IterationRecord(
+                iteration_index=0,
+                template_id="style_shift_v2",
+                system_prompt="system",
+                user_prompt="user",
+                raw_response="raw one",
+                parsed_text="text one",
+                score=reconstruction_metrics.ReconstructionScore(
+                    semantic_source_distance=0.1,
+                    stylistic_source_distance=0.2,
+                    stylistic_target_distance=0.3,
+                    stylistic_target_improvement=0.4,
+                    stylistic_target_improvement_ratio=0.5,
+                    within_semantic_tolerance=True,
+                    within_stylistic_tolerance=True,
+                    within_target_tolerance=True,
+                    lexical_controls=reconstruction_metrics.compute_lexical_controls(
+                        "uno dos tres cuatro",
+                        "uno dos tres cinco",
+                    ),
+                ),
+                score_history={"weighted_objective": 0.42},
+                accepted_as_best=True,
+            ),
+        ),
+        best_iteration_index=0,
+        stop_reason="max_iterations_reached",
+        used_training_examples=False,
+    )
+    failure = reconstruction_baselines.BaselineCaseFailure(
+        case=_baseline_case(),
+        prompt_template_id="style_shift_v2",
+        error_message="model returned reasoning without final content",
+    )
+    cases_path = tmp_path / "cases.json"
+    summary_path = tmp_path / "summary.json"
+    report_path = tmp_path / "report.md"
+
+    reconstruction_baselines.write_baseline_artifacts(
+        results=[result],
+        case_failures=[failure],
+        cases_path=cases_path,
+        summary_path=summary_path,
+        report_path=report_path,
+    )
+
+    cases_payload = json.loads(cases_path.read_text(encoding="utf-8"))
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    assert len(cases_payload["results"]) == 1
+    assert len(cases_payload["case_failures"]) == 1
+    assert summary_payload["total_cases"] == 1
+    assert summary_payload["failed_cases"] == 1
+    assert "Case Failures" in report_path.read_text(encoding="utf-8")
+
+
 def test_revision_loop_improves_weighted_objective_or_stops_cleanly() -> None:
     stylometric_baseline = _manual_baseline(
         "stylometric",
@@ -305,6 +379,43 @@ def test_revision_loop_improves_weighted_objective_or_stops_cleanly() -> None:
     assert objectives[1] > objectives[0]
     assert result.best_iteration_index == 1
     assert result.stop_reason == "max_iterations_reached"
+
+
+def test_revision_generation_failure_keeps_best_previous_iteration() -> None:
+    stylometric_baseline = _manual_baseline(
+        "stylometric",
+        ["sent_len_mean", "mattr"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    semantic_baseline = _manual_baseline(
+        "semantic",
+        ["existential_questioning", "metafiction"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    prompt_backend = FailingPromptBackend(["primer intento"], fail_at=1)
+    measurement_backend = StubMeasurementBackend(
+        {
+            "primer intento": reconstruction_baselines.CandidateMeasurements(
+                stylometric=np.array([1.4, 1.4]),
+                semantic=np.array([1.1, 1.1]),
+            )
+        }
+    )
+
+    result = reconstruction_baselines.run_prompt_case(
+        case=_baseline_case(),
+        prompt_backend=prompt_backend,
+        measurement_backend=measurement_backend,
+        stylometric_baseline=stylometric_baseline,
+        semantic_baseline=semantic_baseline,
+        success_criteria=_success_criteria(),
+        max_iterations=2,
+    )
+
+    assert len(result.iterations) == 1
+    assert result.best_iteration_index == 0
+    assert result.stop_reason == "prompt_generation_failed"
+    assert result.error_message == "model returned reasoning without final content"
 
 
 def test_prompt_baseline_respects_length_guardrails() -> None:
