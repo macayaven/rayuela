@@ -487,7 +487,8 @@ def test_first_iteration_generation_failure_can_be_rescued() -> None:
     assert iteration.parsed_text == "rescate final"
     assert iteration.rescue_used is True
     assert iteration.rescue_error_message == "model returned reasoning without final content"
-    assert "Final passage only" in iteration.user_prompt
+    assert "Repair this failed generation" in iteration.user_prompt
+    assert "Original task instructions" not in iteration.user_prompt
 
 
 def test_prompt_baseline_respects_length_guardrails() -> None:
@@ -666,6 +667,60 @@ def test_openai_prompt_backend_passes_seed_to_chat_completion(
         "max_tokens": 64,
         "seed": 17,
     }
+
+
+def test_openai_prompt_backend_uses_request_token_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: dict[str, object] = {}
+
+    class _Completions:
+        @staticmethod
+        def create(**kwargs: object) -> object:
+            calls["create"] = kwargs
+            return type(
+                "_Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "_Choice",
+                            (),
+                            {"message": type("_Message", (), {"content": "respuesta"})()},
+                        )()
+                    ]
+                },
+            )()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        def __init__(self, *, base_url: str, api_key: str, timeout: float) -> None:
+            del base_url, api_key, timeout
+            self.chat = _Chat()
+
+    monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
+    backend = reconstruction_baselines.OpenAIPromptBackend(max_tokens=2048)
+
+    backend.generate(
+        reconstruction_baselines.PromptRequest(
+            case_id="case-1",
+            control_mode="style_shift",
+            iteration_index=0,
+            template_id="style_shift_v2_rescue",
+            source_window_id="source:1",
+            target_envelope_id="target:1",
+            system_prompt="system",
+            user_prompt="user",
+            metadata={},
+            max_tokens=384,
+        )
+    )
+
+    create_call = calls["create"]
+    assert isinstance(create_call, dict)
+    assert create_call["max_tokens"] == 384
 
 
 def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
@@ -856,6 +911,19 @@ def test_build_argument_parser_exposes_generation_max_tokens() -> None:
     )
 
     assert args.generation_max_tokens == 2048
+
+
+def test_build_argument_parser_exposes_rescue_generation_max_tokens() -> None:
+    args = reconstruction_baselines.build_argument_parser().parse_args(
+        [
+            "--run-id",
+            "phase4-test",
+            "--rescue-generation-max-tokens",
+            "384",
+        ]
+    )
+
+    assert args.rescue_generation_max_tokens == 384
 
 
 def test_build_argument_parser_exposes_generation_temperature() -> None:

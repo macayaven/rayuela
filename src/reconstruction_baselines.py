@@ -107,6 +107,7 @@ class PromptRequest:
     system_prompt: str
     user_prompt: str
     metadata: dict[str, Any]
+    max_tokens: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -120,6 +121,7 @@ class PromptRequest:
             "system_prompt": self.system_prompt,
             "user_prompt": self.user_prompt,
             "metadata": self.metadata,
+            "max_tokens": self.max_tokens,
         }
 
 
@@ -291,7 +293,7 @@ class OpenAIPromptBackend:
                 {"role": "user", "content": request.user_prompt},
             ],
             temperature=self._temperature,
-            max_tokens=self._max_tokens,
+            max_tokens=request.max_tokens or self._max_tokens,
             seed=self._seed,
         )
         return extract_final_message_content(
@@ -642,6 +644,7 @@ def build_prompt_request(
         "source_window_id": case.source_window.window_id,
         "target_envelope_id": case.target_envelope.envelope_id,
         "uses_training_examples": case.uses_training_examples,
+        "style_summary": style_summary,
     }
     user_prompt = template.user_prompt.format(
         source_text=case.source_window.text,
@@ -672,11 +675,13 @@ def build_rescue_prompt_request(
     *,
     failed_request: PromptRequest,
     error_message: str,
+    max_tokens: int | None = None,
 ) -> PromptRequest:
     """Build a strict final-answer-only rescue request after reasoning-only output."""
     source_text = str(failed_request.metadata["source_text"])
     target_author = str(failed_request.metadata["target_author"])
     target_title = str(failed_request.metadata["target_title"])
+    style_summary = str(failed_request.metadata.get("style_summary", ""))
     return PromptRequest(
         case_id=failed_request.case_id,
         control_mode=failed_request.control_mode,
@@ -685,23 +690,23 @@ def build_rescue_prompt_request(
         source_window_id=failed_request.source_window_id,
         target_envelope_id=failed_request.target_envelope_id,
         system_prompt=(
-            "You are in rescue mode. Do not reason visibly. Output only the final rewritten "
-            "Spanish passage. The first visible character must be the first character of the "
-            "passage. No headings, labels, notes, markdown, XML, quotes, analysis, or "
-            "explanation."
+            "You are a final-answer repair pass. Do not analyze the task. Do not plan. "
+            "Do not mention these instructions. Output only one rewritten Spanish passage."
         ),
         user_prompt=(
-            "The previous generation failed because it returned hidden reasoning without final "
-            f"content: {error_message}\n\n"
+            "Repair this failed generation by producing the missing final passage only.\n\n"
+            f"Failure: {error_message}\n\n"
+            "Rules:\n"
+            "- Start immediately with the rewritten passage.\n"
+            "- No headings, labels, notes, markdown, XML, quotes, analysis, or explanation.\n"
+            "- Preserve the scene, facts, characters, order, and approximate length.\n"
+            f"- Move the prose toward the target style: {target_title} by {target_author}.\n"
+            f"- Metric style cues: {style_summary}\n\n"
             f"Source passage:\n{source_text}\n\n"
-            f"Target work: {target_title} by {target_author}\n\n"
-            "Using the same task instructions below, write only the final rewritten passage. "
-            "Keep it close in length and preserve the scene and narrative facts.\n\n"
-            "Original task instructions:\n"
-            f"{failed_request.user_prompt}\n\n"
-            "Final passage only:"
+            "Rewritten passage:"
         ),
         metadata={**failed_request.metadata, "rescue_for_template_id": failed_request.template_id},
+        max_tokens=max_tokens,
     )
 
 
@@ -777,6 +782,7 @@ def run_prompt_case(
     semantic_baseline: MeasurementBaseline,
     success_criteria: SuccessCriteria,
     max_iterations: int = 2,
+    rescue_max_tokens: int | None = None,
     tolerance_config: ToleranceConfig | None = None,
 ) -> BaselineCaseResult:
     """Run one prompt baseline case with optional revision iterations."""
@@ -836,6 +842,7 @@ def run_prompt_case(
                 rescue_request = build_rescue_prompt_request(
                     failed_request=request,
                     error_message=rescue_error_message,
+                    max_tokens=rescue_max_tokens,
                 )
                 try:
                     raw_response = prompt_backend.generate(rescue_request)
@@ -1111,6 +1118,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Maximum completion tokens allowed for each prompt-generation call.",
     )
     parser.add_argument(
+        "--rescue-generation-max-tokens",
+        type=int,
+        default=512,
+        help="Maximum completion tokens for strict final-answer rescue calls.",
+    )
+    parser.add_argument(
         "--semantic-generation-max-tokens",
         type=int,
         default=2048,
@@ -1158,6 +1171,7 @@ def main(argv: list[str] | None = None) -> int:
         "model": args.model,
         "generation_temperature": args.generation_temperature,
         "generation_max_tokens": args.generation_max_tokens,
+        "rescue_generation_max_tokens": args.rescue_generation_max_tokens,
         "semantic_generation_max_tokens": args.semantic_generation_max_tokens,
         "request_timeout_seconds": args.request_timeout_seconds,
         "reasoning_parser": args.reasoning_parser,
@@ -1229,6 +1243,7 @@ def main(argv: list[str] | None = None) -> int:
                         semantic_baseline=baselines.semantic,
                         success_criteria=success_criteria,
                         max_iterations=args.max_iterations,
+                        rescue_max_tokens=args.rescue_generation_max_tokens,
                     )
                 )
             except Exception as exc:
