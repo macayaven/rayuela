@@ -595,3 +595,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Result**: The pinned LoRA smoke completed one optimizer step on a tiny causal model and wrote a non-placeholder adapter artifact. This proves the adapter path exists; it does not yet say anything about literary quality.
 
 **For Part 3**: This is a useful engineering beat for the article: fine-tuning on DGX Spark is not just "install packages and train." The method has to respect the machine-specific NVIDIA stack before any research claim can be trusted.
+
+### 2026-05-01 — Part 3 Phase 5: First Contract Adapter Signal
+
+**Phase**: Part 3 — Phase 5 contract reliability
+
+**What happened**: Trained the first bounded real contract adapter on `Qwen/Qwen2.5-0.5B-Instruct` using the locked `contract_smoke` dataset. The run used `128` examples and `20` LoRA SFT optimizer steps in the pinned NVIDIA PyTorch container.
+
+**Result**: A small held-out contract probe on `8` validation examples showed the adapter reducing forbidden output-contract markers from `5/8` for the base model to `1/8` for the adapter, with zero empty outputs in both cases.
+
+**For Part 3**: This is the first actual positive training signal, but the claim is deliberately narrow: contract reliability improved. We still have not shown literary reconstruction quality or target-author style transfer.
