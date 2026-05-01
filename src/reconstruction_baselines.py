@@ -269,9 +269,14 @@ class OpenAIPromptBackend:
         temperature: float = 0.3,
         max_tokens: int = 768,
         seed: int | None = None,
+        timeout_seconds: float = 600.0,
     ) -> None:
         openai_client = _load_openai_client()
-        self._client = openai_client(base_url=api_base, api_key="not-needed")
+        self._client = openai_client(
+            base_url=api_base,
+            api_key="not-needed",
+            timeout=timeout_seconds,
+        )
         self._model = model
         self._temperature = temperature
         self._max_tokens = max_tokens
@@ -361,10 +366,15 @@ class CorpusMeasurementBackend:
         model: str = DEFAULT_MODEL_NAME,
         semantic_prompt_path: Path = DEFAULT_SEMANTIC_PROMPT_PATH,
         semantic_max_tokens: int = 2048,
+        timeout_seconds: float = 600.0,
     ) -> None:
         openai_client = _load_openai_client()
         self._model = model
-        self._client = openai_client(base_url=api_base, api_key="not-needed")
+        self._client = openai_client(
+            base_url=api_base,
+            api_key="not-needed",
+            timeout=timeout_seconds,
+        )
         self._semantic_prompt = semantic_prompt_path.read_text(encoding="utf-8")
         self._semantic_max_tokens = semantic_max_tokens
         self._nlp: Any | None = None
@@ -1033,9 +1043,12 @@ def build_style_shift_cases(
     source_windows: list[WindowRecord],
     target_envelopes: list[TargetEnvelope],
     *,
+    case_offset: int = 0,
     max_cases: int | None = None,
 ) -> list[BaselineCase]:
     """Build deterministic style-shift cases from the locked Phase 3 pilot."""
+    if case_offset < 0:
+        raise ValueError("case_offset must be non-negative")
     cases: list[BaselineCase] = []
     for source_window in source_windows:
         for target_envelope in target_envelopes:
@@ -1051,6 +1064,8 @@ def build_style_shift_cases(
                     target_envelope=target_envelope,
                 )
             )
+    if case_offset:
+        cases = cases[case_offset:]
     if max_cases is not None:
         return cases[:max_cases]
     return cases
@@ -1073,6 +1088,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--summary-path", type=Path, default=DEFAULT_SUMMARY_PATH)
     parser.add_argument("--report-path", type=Path, default=DEFAULT_REPORT_PATH)
     parser.add_argument("--seed", type=int, default=DEFAULT_RECONSTRUCTION_SEED)
+    parser.add_argument(
+        "--case-offset",
+        type=int,
+        default=0,
+        help="Skip this many deterministic style-shift cases before applying --max-cases.",
+    )
     parser.add_argument("--max-cases", type=int, default=None)
     parser.add_argument("--max-iterations", type=int, default=2)
     parser.add_argument("--api-base", default=VLLM_API_BASE)
@@ -1094,6 +1115,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         type=int,
         default=2048,
         help="Maximum completion tokens allowed for each semantic-evaluation call.",
+    )
+    parser.add_argument(
+        "--request-timeout-seconds",
+        type=float,
+        default=600.0,
+        help="OpenAI-compatible request timeout for generation and semantic scoring calls.",
     )
     parser.add_argument(
         "--reasoning-parser",
@@ -1123,6 +1150,7 @@ def main(argv: list[str] | None = None) -> int:
             args.success_criteria_path, paths.project_root
         ),
         "split_manifest_path": to_project_relative(args.split_manifest_path, paths.project_root),
+        "case_offset": args.case_offset,
         "max_cases": args.max_cases,
         "max_iterations": args.max_iterations,
         "dry_run": args.dry_run,
@@ -1131,6 +1159,7 @@ def main(argv: list[str] | None = None) -> int:
         "generation_temperature": args.generation_temperature,
         "generation_max_tokens": args.generation_max_tokens,
         "semantic_generation_max_tokens": args.semantic_generation_max_tokens,
+        "request_timeout_seconds": args.request_timeout_seconds,
         "reasoning_parser": args.reasoning_parser,
     }
     manifest = build_run_manifest(
@@ -1164,6 +1193,7 @@ def main(argv: list[str] | None = None) -> int:
         cases = build_style_shift_cases(
             source_windows,
             target_envelopes,
+            case_offset=args.case_offset,
             max_cases=args.max_cases,
         )
         prompt_backend: PromptBackend
@@ -1178,11 +1208,13 @@ def main(argv: list[str] | None = None) -> int:
                 temperature=args.generation_temperature,
                 max_tokens=args.generation_max_tokens,
                 seed=args.seed,
+                timeout_seconds=args.request_timeout_seconds,
             )
             measurement_backend = CorpusMeasurementBackend(
                 api_base=args.api_base,
                 model=args.model,
                 semantic_max_tokens=args.semantic_generation_max_tokens,
+                timeout_seconds=args.request_timeout_seconds,
             )
 
         initial_template_id = default_prompt_templates()["style_shift"].template_id

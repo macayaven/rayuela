@@ -320,3 +320,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Bounded rerun**: `phase4-nemotron-teacher-3cases-20260501a` completed with `1` scoreable case and `2` failed cases. The scoreable case had weighted objective about `0.118`, below the current loose distillation threshold, so `phase5-style-distill-nemotron-20260501b` still contains only the original `2` usable examples.
 
 **Interpretation**: The style-transfer path is technically wired, but teacher generation is still weak. The next research unit should improve teacher generation/rescue quality before spending DGX Spark training time on a style adapter.
+
+### 2026-05-01 — Phase 4 Teacher Batching Controls
+
+**Implementation**: Added `--case-offset` to Phase 4 prompt baselines so teacher generation can scan new deterministic source/target pairs instead of repeating the first cases. Added `--request-timeout-seconds` to both prompt generation and semantic scoring clients so one slow OpenAI-compatible request cannot consume an entire batch.
+
+**Teacher scan**: `phase4-nemotron-teacher-offset3-3cases-20260501a` completed with `1` scoreable case and `2` failed cases. The scoreable case had weighted objective about `0.157`, above the loose distillation threshold. Re-distilling into `phase5-style-distill-nemotron-20260501c` raised the usable teacher pool from `2` examples to `3` examples (`2` train, `0` val, `1` test).
+
+**Negative scan**: `phase4-nemotron-teacher-offset6-3cases-20260501a` completed with `0` scoreable cases and `3` failures. The dominant failure remains visible/hidden reasoning separation: the backend can spend the completion on reasoning without final content for some pairs.
+
+**Interpretation**: The data bottleneck is now sharply identified. More batching alone will help slowly, but the higher-leverage fix is a teacher-generation rescue or stricter final-answer prompt that converts reasoning-heavy failures into scoreable passages.
