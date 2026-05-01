@@ -605,3 +605,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Result**: A small held-out contract probe on `8` validation examples showed the adapter reducing forbidden output-contract markers from `5/8` for the base model to `1/8` for the adapter, with zero empty outputs in both cases.
 
 **For Part 3**: This is the first actual positive training signal, but the claim is deliberately narrow: contract reliability improved. We still have not shown literary reconstruction quality or target-author style transfer.
+
+### 2026-05-01 — Part 3 Phase 5: Scaled Contract Probe
+
+**Phase**: Part 3 — Phase 5 contract reliability
+
+**What happened**: Scaled the same Qwen 0.5B LoRA contract adapter lane from `128` examples and `20` steps to `512` examples and `80` steps, staying inside the pinned NVIDIA PyTorch DGX Spark container.
+
+**Result**: On a `32`-example held-out contract probe, the adapter reduced forbidden output-contract markers from `10/32` for the base model to `1/32` for the adapter. Both runs had zero empty outputs and zero prompt-scaffold echoes.
+
+**For Part 3**: This gives the article a stronger engineering-to-research transition: the first fine-tune is not just executable, it changes a measurable reliability behavior. The next article claim should still avoid saying the model has learned Cortazar style until a separate style and quality evaluation is run.

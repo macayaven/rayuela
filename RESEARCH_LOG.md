@@ -292,3 +292,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Contract probe**: Added a repo-native contract probe in `src/reconstruction_infer.py` and ran it on the first `8` validation examples. The fine-tuned adapter produced no empty outputs, no prompt-scaffold echoes, and `1/8` outputs with forbidden contract markers. The unfine-tuned base model on the same examples also produced no empty outputs or scaffold echoes, but had `5/8` forbidden-marker outputs.
 
 **Interpretation**: This is the first positive Phase 5 signal at the reliability layer. It does not establish literary quality or style transfer, but it suggests the contract adapter reduces visible output-contract violations compared with the base model under the same prompt.
+
+### 2026-05-01 — Phase 5 Scaled Contract Adapter Probe
+
+**Run**: `phase5-lora-contract-qwen05b-20260501b` scaled the same validated DGX Spark PyTorch PEFT/TRL lane to `512` contract-smoke training examples and `80` optimizer steps on `Qwen/Qwen2.5-0.5B-Instruct`. The run stayed inside `nvcr.io/nvidia/pytorch:25.11-py3`, used rank `8`, gradient accumulation `4`, and recorded git SHA `6f02db352e65b1a76b7439bd6e1f0e86c984c103`. Final train loss was about `2.62`, with runtime about `49` seconds.
+
+**Contract probe**: Ran the repo-native adapter/base comparison on the first `32` validation examples. The adapter produced `0/32` empty outputs, `0/32` prompt-scaffold echoes, and `1/32` outputs with forbidden contract markers. The unfine-tuned base model produced `0/32` empty outputs, `0/32` prompt-scaffold echoes, and `10/32` outputs with forbidden contract markers.
+
+**Interpretation**: The reliability signal strengthened from the first `8`-example probe to a larger `32`-example probe. This still does not establish literary reconstruction quality, but it makes the next experiment clearer: move from contract reliability toward controlled target-style evaluation while preserving the same container and probe discipline.
