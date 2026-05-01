@@ -266,3 +266,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **First run**: `phase5-seq2seq-smoke-20260501a` used `hf-internal-testing/tiny-random-t5`, `contract_smoke`, `2` train examples, `1` validation example, and `1` optimizer step. It produced a non-placeholder `seq2seq_full_model_smoke` artifact with train loss about `7.006`. This is not a quality claim; it proves the training node can execute and persist a real checkpoint-shaped artifact.
 
 **Next risk**: The next escalation is not literary evaluation yet. It is adding the actual adapter path, probably PEFT/QLoRA, to the training container while keeping this smoke run as the fast health check.
+
+### 2026-05-01 — DGX Spark Fine-Tuning Playbook Review
+
+**Source review**: Reviewed NVIDIA's official DGX Spark playbooks for PyTorch fine-tuning and Unsloth. The PyTorch playbook uses the NGC PyTorch container plus `transformers`, `peft`, `datasets`, `trl`, and `bitsandbytes`, with example scripts for full SFT, LoRA, and QLoRA. The Unsloth playbook uses the same Spark premise but adds optimized kernels, 4-bit model loading, and a compact validation script.
+
+**Decision**: Adapt the PyTorch PEFT/TRL path first. It is closer to Rayuela's current `seq2seq_smoke` runner and introduces fewer new moving parts. Unsloth remains a second lane for throughput once PyTorch LoRA proves the dataset, adapter artifact, and evaluation contract.
+
+**Implementation note**: Added `plans/phase5_dgx_spark_finetune_playbook.md` and `scripts/bootstrap_dgx_spark_finetune.sh` so the official playbook assumptions are captured in repo-native form instead of living only as shell history.
+
+**Hardware guardrail**: DGX Spark should be treated as a narrow NVIDIA-supported stack, not as a generic CUDA workstation. The bootstrap now defaults to NVIDIA's playbook PyTorch image, checks `nvidia-smi`, `nvcc`, and PyTorch CUDA visibility before installing dependencies, and constrains pip installs so the NGC Torch/CUDA/Triton stack is not silently replaced.

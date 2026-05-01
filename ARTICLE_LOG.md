@@ -573,3 +573,15 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: This is an execution proof, not a literary result. The run proves that the dataset, tokenizer, trainer, checkpoint writing, metrics, and metadata surfaces work end to end before we add PEFT/QLoRA and a serious base model.
 
 **For Part 3**: This matters because the fine-tuning phase has now actually started. The next article can distinguish three layers cleanly: prompt-only baselines failed on reliability and quality, contract data is now available, and the training machinery can produce a real artifact. The remaining work is adapter quality, not starting from zero.
+
+### 2026-05-01 — Part 3 Phase 5: DGX Spark Training Direction
+
+**Phase**: Part 3 — Phase 5 adapter implementation
+
+**What happened**: Reviewed NVIDIA's official DGX Spark fine-tuning playbooks for PyTorch and Unsloth and converted the relevant guidance into a Rayuela-specific plan. The repo now has a DGX Spark fine-tuning adaptation document and a bootstrap script for PyTorch or Unsloth dependency lanes.
+
+**Key decision**: Use PyTorch PEFT/TRL first, then evaluate Unsloth as an optimization. The research risk right now is not training speed; it is making sure the adapter path respects the locked dataset, immutable run metadata, and later evaluation contract.
+
+**Hardware constraint**: DGX Spark is not yet a generic commodity fine-tuning target. The implementation therefore keeps training inside NVIDIA's validated container lane, checks CUDA visibility before dependency installation, and protects the container's PyTorch/CUDA stack from accidental PyPI replacement.
+
+**For Part 3**: This gives the fine-tuning chapter a grounded engineering narrative: we are not improvising the training stack, but adapting official DGX Spark recipes while preserving the project's reproducibility contract.
