@@ -549,3 +549,7 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: Try this before Phase 5 training so we do not mistake a recoverable output-contract failure for a fundamental model-quality failure.
 
 **For Part 3**: This creates a cleaner story boundary. If rescue works, prompt baselines get a fairer test. If rescue fails or the rescued passages remain bad, then the article can justify fine-tuning as the next necessary step rather than a premature escalation.
+
+**Result**: The rescue pass worked operationally but not literarily. It recovered the Borges -> Bolaño case into a scoreable passage, but that passage still failed semantic preservation, target-style fit, and length guardrails. Revision added no improvement and became a stalled-revision case.
+
+**For Part 3**: This is a valuable negative result. We can now say prompting was given a fairer chance: normal generation, partial-failure preservation, all-failure artifacts, and final-answer rescue. The remaining failure is no longer just plumbing. It is evidence that the prompt-only lane is not yet producing the kind of controlled literary reconstruction the article needs.

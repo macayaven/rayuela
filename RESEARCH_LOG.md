@@ -244,3 +244,7 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Why this comes first**: The previous runs showed a mixed failure: serving works and some passages are scoreable, but missing final content can still erase whole cases. The rescue pass separates execution-contract failure from true literary reconstruction failure before we spend time on adapter training.
 
 **Retry plan**: `plans/reconstruction_guided_schedule.nemotron-rescue-20260501.json` repeats the small 1-case and 2-case comparison with fresh immutable run IDs, so we can measure whether rescue improves completion rate and whether the extra recovered outputs remain weak or become useful.
+
+**Result**: `guided-phase4-nemotron-rescue-20260501a` completed all three experiments without scheduler failures. The rescue path recovered the Borges -> Bolaño case that previously failed to emit final content, producing a scoreable passage with objective `0.1425`. However, the output still failed `semantic_drift`, `target_miss`, and `length_guardrail`. The 2-case runs still failed to recover the Borges -> García Márquez case, and the 2-iteration rescue run introduced `stalled_revision` with no objective improvement.
+
+**Conclusion**: Rescue is useful as instrumentation and completion recovery, but it does not solve literary quality. The evidence now strongly favors moving to Phase 5 fine-tuning or a different generation strategy rather than continuing to tune prompt-only Nemotron runs.
