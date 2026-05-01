@@ -404,6 +404,84 @@ def test_select_training_examples_is_split_bounded() -> None:
     assert [example.window_id for example in selected] == ["w0", "w1"]
 
 
+def test_contract_probe_prompt_and_marker_detection() -> None:
+    example = {
+        "instruction": "Devuelve solamente el pasaje final.",
+        "source_text": "Texto fuente.",
+    }
+
+    prompt = reconstruction_infer.build_contract_probe_prompt(example)
+    markers = reconstruction_infer.detect_forbidden_markers("### Respuesta:\nNota: algo")
+
+    assert prompt == (
+        "### Instrucción:\n"
+        "Devuelve solamente el pasaje final.\n\n"
+        "### Pasaje:\n"
+        "Texto fuente.\n\n"
+        "### Respuesta:\n"
+    )
+    assert markers == ["###", "Respuesta:", "Nota:", "# "]
+
+
+def test_contract_probe_summary_counts_failures() -> None:
+    records = [
+        {
+            "output_words": 10,
+            "length_ratio": 0.5,
+            "empty": False,
+            "forbidden_markers": [],
+            "starts_with_prompt_scaffold": False,
+        },
+        {
+            "output_words": 0,
+            "length_ratio": 0.0,
+            "empty": True,
+            "forbidden_markers": ["Nota:"],
+            "starts_with_prompt_scaffold": True,
+        },
+    ]
+
+    summary = reconstruction_infer.summarize_contract_probe_records(
+        run_id="run",
+        model_id="model",
+        adapter_path="adapter",
+        records=records,
+    )
+
+    assert summary["probe_examples"] == 2
+    assert summary["empty_count"] == 1
+    assert summary["forbidden_marker_count"] == 1
+    assert summary["prompt_scaffold_count"] == 1
+    assert summary["mean_output_words"] == 5.0
+    assert summary["mean_length_ratio"] == 0.25
+
+
+def test_load_probe_examples_reads_bounded_jsonl(tmp_path: Path) -> None:
+    probe_path = tmp_path / "probe.jsonl"
+    probe_path.write_text(
+        "\n".join(
+            [
+                json.dumps({"window_id": "w1"}),
+                json.dumps({"window_id": "w2"}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    examples = reconstruction_infer.load_probe_examples(probe_path, limit=1)
+
+    assert examples == [{"window_id": "w1"}]
+
+
+def test_load_probe_examples_rejects_empty_jsonl(tmp_path: Path) -> None:
+    probe_path = tmp_path / "empty.jsonl"
+    probe_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="did not contain any examples"):
+        reconstruction_infer.load_probe_examples(probe_path, limit=8)
+
+
 def test_checkpoint_metadata_is_complete(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

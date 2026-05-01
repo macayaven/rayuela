@@ -284,3 +284,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Compatibility finding**: An unpinned PEFT/TRL install inside `nvcr.io/nvidia/pytorch:25.11-py3` failed before training because `peft 0.19.1` rejected the image's bundled `torchao 0.14.0+git`. We did not upgrade Torch or `torchao`; instead, the bootstrap pins the Hugging Face/PEFT/TRL userland layer to avoid breaking the NVIDIA stack.
 
 **Successful smoke**: `phase5-lora-sft-smoke-20260501b` completed one LoRA SFT optimizer step on `hf-internal-testing/tiny-random-LlamaForCausalLM` with `2` contract examples, rank `4`, and a non-placeholder adapter artifact under `adapter/adapter_model.safetensors`. Train loss was about `10.29`. This is still an execution proof, not a quality result.
+
+### 2026-05-01 — Phase 5 Qwen 0.5B Contract Adapter
+
+**Run**: `phase5-lora-contract-qwen05b-20260501a` trained a bounded LoRA contract adapter on `Qwen/Qwen2.5-0.5B-Instruct` inside `nvcr.io/nvidia/pytorch:25.11-py3`, using the pinned PyTorch PEFT/TRL dependency lane. The run used `128` contract-smoke training examples, rank `8`, gradient accumulation `4`, and `20` optimizer steps. Final train loss was about `2.81`.
+
+**Contract probe**: Added a repo-native contract probe in `src/reconstruction_infer.py` and ran it on the first `8` validation examples. The fine-tuned adapter produced no empty outputs, no prompt-scaffold echoes, and `1/8` outputs with forbidden contract markers. The unfine-tuned base model on the same examples also produced no empty outputs or scaffold echoes, but had `5/8` forbidden-marker outputs.
+
+**Interpretation**: This is the first positive Phase 5 signal at the reliability layer. It does not establish literary quality or style transfer, but it suggests the contract adapter reduces visible output-contract violations compared with the base model under the same prompt.

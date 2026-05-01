@@ -345,6 +345,14 @@ Primary outputs:
 - `outputs/reconstruction/runs/<run_id>/training_dataset/{train,val,test}.jsonl`
 - `outputs/reconstruction/runs/<run_id>/checkpoint_metadata.json`
 
+Contract probes for LoRA adapters should run inside the same pinned DGX Spark
+container lane:
+
+```bash
+python3 src/reconstruction_infer.py --checkpoint-metadata-path outputs/reconstruction/runs/<run_id>/checkpoint_metadata.json --probe-split-path outputs/reconstruction/runs/<run_id>/training_dataset/val.jsonl --contract-probe-output-path outputs/reconstruction/runs/<run_id>/contract_probe.json --probe-examples 8
+python3 src/reconstruction_infer.py --checkpoint-metadata-path outputs/reconstruction/runs/<run_id>/checkpoint_metadata.json --probe-split-path outputs/reconstruction/runs/<run_id>/training_dataset/val.jsonl --contract-probe-output-path outputs/reconstruction/runs/<run_id>/contract_probe_base.json --probe-examples 8 --base-only
+```
+
 ## Reconstruction Analysis
 
 Phase 6 adds [`src/reconstruction_analysis.py`](src/reconstruction_analysis.py)
