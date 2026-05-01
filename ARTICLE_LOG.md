@@ -563,3 +563,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: Fine-tuning should begin with the output contract, not with maximal literary ambition. The examples intentionally map source text to itself while instructing the model to return only the final Spanish passage and avoid reasoning, notes, headings, markdown, or explanation.
 
 **For Part 3**: This gives the next article a disciplined escalation path. Prompting has now failed after parser support, explicit budgets, prompt tightening, partial-failure preservation, and final-answer rescue. The first training step isolates reliability before style transfer, so later results can say whether adapter training improved the right layer of the problem.
+
+### 2026-05-01 — Part 3 Phase 5: First Real Training Smoke
+
+**Phase**: Part 3 — Phase 5 fine-tuning execution
+
+**What happened**: Converted the Phase 5 entry point from scaffold-only to a two-mode runner. The default still writes the reproducible training envelope, but `--training-mode seq2seq_smoke` now performs a bounded real Transformers `Seq2SeqTrainer` run and saves a non-placeholder model artifact. The first smoke run used a tiny random T5 model, `2` train examples, `1` validation example, and `1` optimizer step.
+
+**Key decision**: This is an execution proof, not a literary result. The run proves that the dataset, tokenizer, trainer, checkpoint writing, metrics, and metadata surfaces work end to end before we add PEFT/QLoRA and a serious base model.
+
+**For Part 3**: This matters because the fine-tuning phase has now actually started. The next article can distinguish three layers cleanly: prompt-only baselines failed on reliability and quality, contract data is now available, and the training machinery can produce a real artifact. The remaining work is adapter quality, not starting from zero.

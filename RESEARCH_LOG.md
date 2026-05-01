@@ -256,3 +256,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: `src/reconstruction_train.py` now writes split-specific JSONL datasets under each immutable training run directory. The first scaffold run, `phase5-contract-smoke-20260501a`, produced `3,240` examples from the locked pilot artifacts: `2,270` train, `507` validation, and `463` test examples. The run remains `scaffold_only` and writes placeholder adapter metadata rather than claiming real training.
 
 **Why this matters**: The prompt-only Nemotron evidence showed two separable problems: final-answer reliability and literary quality. Training the contract first attacks the cheaper, more measurable reliability problem and reduces the risk that a later style-transfer adapter is blamed for failures that are really output-format instability.
+
+### 2026-05-01 — Phase 5 Seq2Seq Smoke Training Node
+
+**Decision**: Start the fine-tuning node with a bounded real training smoke run before adding PEFT/QLoRA complexity. The local development venv does not include the ML training stack, but the Rayuela Docker image has PyTorch, Transformers, Datasets, and Accelerate. It does not currently include PEFT or bitsandbytes.
+
+**Implementation**: `src/reconstruction_train.py` now supports `--training-mode seq2seq_smoke`, which tokenizes the contract dataset, runs a bounded `Seq2SeqTrainer` job, saves a non-placeholder model artifact, and records training metrics inside the same immutable Phase 5 envelope. The scaffold mode remains the default.
+
+**First run**: `phase5-seq2seq-smoke-20260501a` used `hf-internal-testing/tiny-random-t5`, `contract_smoke`, `2` train examples, `1` validation example, and `1` optimizer step. It produced a non-placeholder `seq2seq_full_model_smoke` artifact with train loss about `7.006`. This is not a quality claim; it proves the training node can execute and persist a real checkpoint-shaped artifact.
+
+**Next risk**: The next escalation is not literary evaluation yet. It is adding the actual adapter path, probably PEFT/QLoRA, to the training container while keeping this smoke run as the fast health check.

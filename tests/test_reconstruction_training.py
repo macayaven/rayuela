@@ -258,8 +258,11 @@ def test_model_config_is_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert exit_code == 0
     assert payload["model_id"] == "google/mt5-xl"
     assert payload["dataset_mode"] == "identity_smoke"
+    assert payload["training_mode"] == "scaffold"
     assert payload["wandb_project"] is None
     assert payload["seed"] == reconstruction_train.DEFAULT_RECONSTRUCTION_SEED
+    assert metrics_payload["status"] == "scaffold_only"
+    assert metrics_payload["training_mode"] == "scaffold"
     assert metrics_payload["dataset_paths"]["train"].endswith("training_dataset/train.jsonl")
 
 
@@ -348,6 +351,41 @@ def test_training_dataset_jsonl_is_written_by_split(tmp_path: Path) -> None:
     assert json.loads(train_lines[0])["window_id"] == "w1"
 
 
+def test_seq2seq_input_format_includes_instruction_and_source() -> None:
+    example = reconstruction_train.TrainingExample(
+        window_id="w1",
+        split="train",
+        instruction="Devuelve solamente el pasaje final.",
+        source_text="Texto fuente.",
+        target_text="Texto destino.",
+        target_envelope_id="target:1",
+        dataset_mode="contract_smoke",
+    )
+
+    formatted = reconstruction_train.format_seq2seq_input(example)
+
+    assert formatted == "Devuelve solamente el pasaje final.\n\nPasaje:\nTexto fuente."
+
+
+def test_select_training_examples_is_split_bounded() -> None:
+    examples = [
+        reconstruction_train.TrainingExample(
+            window_id=f"w{index}",
+            split="train" if index < 3 else "val",
+            instruction="instr",
+            source_text="source",
+            target_text="target",
+            target_envelope_id="target:1",
+            dataset_mode="contract_smoke",
+        )
+        for index in range(5)
+    ]
+
+    selected = reconstruction_train.select_training_examples(examples, split="train", limit=2)
+
+    assert [example.window_id for example in selected] == ["w0", "w1"]
+
+
 def test_checkpoint_metadata_is_complete(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -394,6 +432,61 @@ def test_checkpoint_metadata_is_complete(
     assert payload["tokenizer_config_path"].endswith("tokenizer_config.json")
     assert payload["metrics_path"].endswith("training_metrics.json")
     assert payload["split_counts"] == {"train": 4, "val": 4, "test": 4}
+
+
+def test_seq2seq_smoke_mode_writes_non_placeholder_artifact_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    corpus_dir, corpus_output_dir, _, split_manifest_path, target_envelopes_path = (
+        _build_phase5_artifacts(tmp_path)
+    )
+    monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(reconstruction_train, "detect_git_sha", lambda project_root: "feedface")
+
+    def _fake_train(
+        *,
+        examples: list[reconstruction_train.TrainingExample],
+        config: reconstruction_train.TrainingConfig,
+        model_output_dir: Path,
+    ) -> dict[str, float | int | str]:
+        assert examples
+        assert config.training_mode == "seq2seq_smoke"
+        model_output_dir.mkdir(parents=True)
+        (model_output_dir / "config.json").write_text("{}", encoding="utf-8")
+        return {"train_loss": 0.25, "trained_examples": 2}
+
+    monkeypatch.setattr(reconstruction_train, "run_seq2seq_smoke_training", _fake_train)
+
+    reconstruction_train.main(
+        [
+            "--run-id",
+            "phase5-real-smoke",
+            "--training-mode",
+            "seq2seq_smoke",
+            "--max-train-examples",
+            "2",
+            "--corpus-dir",
+            str(corpus_dir),
+            "--corpus-output-dir",
+            str(corpus_output_dir),
+            "--split-manifest-path",
+            str(split_manifest_path),
+            "--target-envelopes-path",
+            str(target_envelopes_path),
+            "--allow-corpus-discovery",
+        ]
+    )
+
+    run_dir = tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-real-smoke"
+    metadata = json.loads((run_dir / "checkpoint_metadata.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "training_metrics.json").read_text(encoding="utf-8"))
+
+    assert metadata["adapter_type"] == "seq2seq_full_model_smoke"
+    assert metadata["adapter_is_placeholder"] is False
+    assert metadata["adapter_artifact_path"].endswith("model")
+    assert metrics["status"] == "trained_smoke"
+    assert metrics["training_metrics"]["train_loss"] == 0.25
 
 
 def test_inference_pipeline_refuses_placeholder_adapter(
@@ -458,10 +551,18 @@ def test_optional_wandb_logging_records_run_metadata(monkeypatch: pytest.MonkeyP
         run_id="phase5-wandb",
         model_id="google/mt5-xl",
         dataset_mode="identity_smoke",
+        training_mode="scaffold",
         seed=17,
         wandb_project="rayuela",
         wandb_entity="macayaven",
         wandb_mode="offline",
+        max_steps=5,
+        max_train_examples=32,
+        max_eval_examples=16,
+        learning_rate=5e-5,
+        per_device_train_batch_size=1,
+        max_source_length=512,
+        max_target_length=512,
     )
 
     logger = reconstruction_train.build_experiment_logger(
@@ -480,6 +581,7 @@ def test_optional_wandb_logging_records_run_metadata(monkeypatch: pytest.MonkeyP
             "run_id": "phase5-wandb",
             "model_id": "google/mt5-xl",
             "dataset_mode": "identity_smoke",
+            "training_mode": "scaffold",
             "seed": 17,
             "git_sha": "feedface",
             "split_counts": {"train": 4, "val": 2, "test": 2},

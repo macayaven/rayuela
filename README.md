@@ -313,6 +313,7 @@ training envelope before real adapter fine-tuning.
 The modules provide:
 
 - deterministic `identity_smoke` and `contract_smoke` dataset assembly from the locked pilot split
+- bounded `seq2seq_smoke` training for verifying the real fine-tuning execution path
 - immutable run directories with training config, tokenizer config, metrics, and
   split-specific JSONL training datasets, and checkpoint metadata
 - placeholder-adapter handling that is explicit in metadata and rejected by
@@ -324,6 +325,7 @@ Targeted Phase 5 verification:
 python3 -m pytest tests/test_reconstruction_training.py -q
 python3 src/reconstruction_train.py --run-id phase5-smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
 python3 src/reconstruction_train.py --run-id phase5-contract-smoke --dataset-mode contract_smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
+python3 src/reconstruction_train.py --run-id phase5-seq2seq-smoke --training-mode seq2seq_smoke --dataset-mode contract_smoke --model-id hf-internal-testing/tiny-random-t5 --max-steps 1 --max-train-examples 2 --max-eval-examples 1 --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
 ```
 
 Primary outputs:

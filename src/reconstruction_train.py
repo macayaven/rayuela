@@ -36,6 +36,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_ID = "google/mt5-xl"
 DEFAULT_DATASET_MODE = "identity_smoke"
 CONTRACT_DATASET_MODE = "contract_smoke"
+SCAFFOLD_TRAINING_MODE = "scaffold"
+SEQ2SEQ_SMOKE_TRAINING_MODE = "seq2seq_smoke"
 
 
 def _load_pilot_json(path: Path) -> Any:
@@ -67,10 +69,18 @@ class TrainingConfig:
     run_id: str
     model_id: str
     dataset_mode: str
+    training_mode: str
     seed: int
     wandb_project: str | None
     wandb_entity: str | None
     wandb_mode: str
+    max_steps: int
+    max_train_examples: int
+    max_eval_examples: int
+    learning_rate: float
+    per_device_train_batch_size: int
+    max_source_length: int
+    max_target_length: int
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -147,6 +157,7 @@ def build_experiment_logger(
             "run_id": config.run_id,
             "model_id": config.model_id,
             "dataset_mode": config.dataset_mode,
+            "training_mode": config.training_mode,
             "seed": config.seed,
             "git_sha": git_sha,
             "split_counts": split_counts,
@@ -284,6 +295,141 @@ def write_training_dataset(examples: list[TrainingExample], dataset_dir: Path) -
     return paths
 
 
+def format_seq2seq_input(example: TrainingExample) -> str:
+    """Format one reconstruction example as a supervised seq2seq input."""
+    return f"{example.instruction}\n\nPasaje:\n{example.source_text}"
+
+
+def select_training_examples(
+    examples: list[TrainingExample],
+    *,
+    split: str,
+    limit: int,
+) -> list[TrainingExample]:
+    """Select a deterministic bounded subset from one split."""
+    selected = [example for example in examples if example.split == split]
+    if limit > 0:
+        return selected[:limit]
+    return selected
+
+
+def _load_seq2seq_training_backend() -> dict[str, Any]:
+    """Load optional training dependencies only for real training runs."""
+    try:
+        torch = importlib.import_module("torch")
+        datasets = importlib.import_module("datasets")
+        transformers = importlib.import_module("transformers")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Seq2seq smoke training requires torch, datasets, transformers, and accelerate. "
+            "Run inside the Rayuela analysis container or install those packages first."
+        ) from exc
+
+    return {
+        "torch": torch,
+        "Dataset": datasets.Dataset,
+        "AutoModelForSeq2SeqLM": transformers.AutoModelForSeq2SeqLM,
+        "AutoTokenizer": transformers.AutoTokenizer,
+        "DataCollatorForSeq2Seq": transformers.DataCollatorForSeq2Seq,
+        "Seq2SeqTrainer": transformers.Seq2SeqTrainer,
+        "Seq2SeqTrainingArguments": transformers.Seq2SeqTrainingArguments,
+    }
+
+
+def run_seq2seq_smoke_training(
+    *,
+    examples: list[TrainingExample],
+    config: TrainingConfig,
+    model_output_dir: Path,
+) -> dict[str, float | int | str]:
+    """Run a bounded real seq2seq training smoke test and save the model artifact."""
+    train_examples = select_training_examples(
+        examples,
+        split="train",
+        limit=config.max_train_examples,
+    )
+    eval_examples = select_training_examples(
+        examples,
+        split="val",
+        limit=config.max_eval_examples,
+    )
+    if not train_examples:
+        raise ValueError("seq2seq smoke training requires at least one train example")
+
+    backend = _load_seq2seq_training_backend()
+    dataset_cls = backend["Dataset"]
+    tokenizer = backend["AutoTokenizer"].from_pretrained(config.model_id)
+    model = backend["AutoModelForSeq2SeqLM"].from_pretrained(config.model_id)
+
+    def _records(selected: list[TrainingExample]) -> list[dict[str, str]]:
+        return [
+            {
+                "input_text": format_seq2seq_input(example),
+                "target_text": example.target_text,
+            }
+            for example in selected
+        ]
+
+    def _tokenize(batch: dict[str, list[str]]) -> dict[str, Any]:
+        model_inputs = tokenizer(
+            batch["input_text"],
+            max_length=config.max_source_length,
+            truncation=True,
+        )
+        labels = tokenizer(
+            text_target=batch["target_text"],
+            max_length=config.max_target_length,
+            truncation=True,
+        )
+        model_inputs["labels"] = labels["input_ids"]
+        return model_inputs
+
+    train_dataset = dataset_cls.from_list(_records(train_examples)).map(
+        _tokenize,
+        batched=True,
+        remove_columns=["input_text", "target_text"],
+    )
+    eval_dataset = None
+    if eval_examples:
+        eval_dataset = dataset_cls.from_list(_records(eval_examples)).map(
+            _tokenize,
+            batched=True,
+            remove_columns=["input_text", "target_text"],
+        )
+
+    training_args = backend["Seq2SeqTrainingArguments"](
+        output_dir=str(model_output_dir / "trainer_state"),
+        max_steps=config.max_steps,
+        learning_rate=config.learning_rate,
+        per_device_train_batch_size=config.per_device_train_batch_size,
+        report_to=[],
+        logging_steps=1,
+        save_strategy="no",
+        seed=config.seed,
+        data_seed=config.seed,
+    )
+    trainer = backend["Seq2SeqTrainer"](
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        processing_class=tokenizer,
+        data_collator=backend["DataCollatorForSeq2Seq"](tokenizer=tokenizer, model=model),
+    )
+    train_output = trainer.train()
+    trainer.save_model(str(model_output_dir))
+    tokenizer.save_pretrained(str(model_output_dir))
+
+    metrics: dict[str, float | int | str] = {
+        str(key): float(value) for key, value in train_output.metrics.items()
+    }
+    metrics["trained_examples"] = len(train_examples)
+    metrics["eval_examples"] = len(eval_examples)
+    metrics["max_steps"] = config.max_steps
+    metrics["artifact_type"] = "seq2seq_full_model_smoke"
+    return metrics
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     """Persist JSON with deterministic formatting."""
     path.write_text(
@@ -315,7 +461,25 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", required=True, help="Unique run identifier.")
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     parser.add_argument("--dataset-mode", default=DEFAULT_DATASET_MODE)
+    parser.add_argument(
+        "--training-mode",
+        default=SCAFFOLD_TRAINING_MODE,
+        choices=(SCAFFOLD_TRAINING_MODE, SEQ2SEQ_SMOKE_TRAINING_MODE),
+        help="Use scaffold for metadata only, or seq2seq_smoke for a bounded real training run.",
+    )
     parser.add_argument("--seed", type=int, default=DEFAULT_RECONSTRUCTION_SEED)
+    parser.add_argument("--max-steps", type=int, default=5)
+    parser.add_argument("--max-train-examples", type=int, default=32)
+    parser.add_argument("--max-eval-examples", type=int, default=16)
+    parser.add_argument("--learning-rate", type=float, default=5e-5)
+    parser.add_argument("--per-device-train-batch-size", type=int, default=1)
+    parser.add_argument("--max-source-length", type=int, default=512)
+    parser.add_argument("--max-target-length", type=int, default=512)
+    parser.add_argument(
+        "--git-sha",
+        default=None,
+        help="Override detected git SHA, useful in training containers without git installed.",
+    )
     parser.add_argument("--corpus-dir", type=Path, default=PROJECT_ROOT / "data" / "corpus")
     parser.add_argument(
         "--corpus-output-dir", type=Path, default=PROJECT_ROOT / "outputs" / "corpus"
@@ -344,17 +508,26 @@ def main(argv: list[str] | None = None) -> int:
         run_id=args.run_id,
         model_id=args.model_id,
         dataset_mode=args.dataset_mode,
+        training_mode=args.training_mode,
         seed=args.seed,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_mode=args.wandb_mode,
+        max_steps=args.max_steps,
+        max_train_examples=args.max_train_examples,
+        max_eval_examples=args.max_eval_examples,
+        learning_rate=args.learning_rate,
+        per_device_train_batch_size=args.per_device_train_batch_size,
+        max_source_length=args.max_source_length,
+        max_target_length=args.max_target_length,
     )
-    git_sha = detect_git_sha(paths.project_root)
+    git_sha = args.git_sha or detect_git_sha(paths.project_root)
     config_path = run_dir / "training_config.json"
     tokenizer_config_path = run_dir / "tokenizer_config.json"
     metrics_path = run_dir / "training_metrics.json"
     checkpoint_path = run_dir / "checkpoint_metadata.json"
     adapter_dir = run_dir / "adapter"
+    model_dir = run_dir / "model"
     dataset_dir = run_dir / "training_dataset"
     try:
         run_manifest = build_run_manifest(
@@ -369,6 +542,7 @@ def main(argv: list[str] | None = None) -> int:
                     checkpoint_path, paths.project_root
                 ),
                 "dataset_mode": args.dataset_mode,
+                "training_mode": args.training_mode,
             },
             corpus_manifest=to_project_relative(
                 args.corpus_output_dir / "corpus_metadata.json",
@@ -404,7 +578,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         split_counts = count_examples_by_split(examples)
         dataset_paths = write_training_dataset(examples, dataset_dir)
-        adapter_path = _write_placeholder_adapter(adapter_dir)
+        training_metrics: dict[str, float | int | str]
+        if args.training_mode == SEQ2SEQ_SMOKE_TRAINING_MODE:
+            artifact_path = model_dir
+            adapter_type = "seq2seq_full_model_smoke"
+            adapter_is_placeholder = False
+            training_status = "trained_smoke"
+            training_metrics = run_seq2seq_smoke_training(
+                examples=examples,
+                config=training_config,
+                model_output_dir=model_dir,
+            )
+        else:
+            artifact_path = _write_placeholder_adapter(adapter_dir)
+            adapter_type = "qlora"
+            adapter_is_placeholder = True
+            training_status = "scaffold_only"
+            training_metrics = {}
 
         _write_json(config_path, training_config.to_dict())
         _write_json(tokenizer_config_path, {"model_id": training_config.model_id})
@@ -412,13 +602,15 @@ def main(argv: list[str] | None = None) -> int:
             metrics_path,
             {
                 "run_id": args.run_id,
-                "status": "scaffold_only",
+                "status": training_status,
+                "training_mode": args.training_mode,
                 "dataset_mode": args.dataset_mode,
                 "split_counts": split_counts,
                 "dataset_paths": {
                     split: to_project_relative(dataset_dir / filename, paths.project_root)
                     for split, filename in dataset_paths.items()
                 },
+                "training_metrics": training_metrics,
                 "tolerance_config": ToleranceConfig().to_dict(),
             },
         )
@@ -428,9 +620,9 @@ def main(argv: list[str] | None = None) -> int:
             git_sha=git_sha,
             phase="phase-5-training-scaffold",
             model_id=args.model_id,
-            adapter_type="qlora",
-            adapter_artifact_path=to_project_relative(adapter_path, paths.project_root),
-            adapter_is_placeholder=True,
+            adapter_type=adapter_type,
+            adapter_artifact_path=to_project_relative(artifact_path, paths.project_root),
+            adapter_is_placeholder=adapter_is_placeholder,
             config_path=to_project_relative(config_path, paths.project_root),
             tokenizer_config_path=to_project_relative(tokenizer_config_path, paths.project_root),
             metrics_path=to_project_relative(metrics_path, paths.project_root),
