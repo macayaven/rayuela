@@ -38,6 +38,7 @@ DEFAULT_DATASET_MODE = "identity_smoke"
 CONTRACT_DATASET_MODE = "contract_smoke"
 SCAFFOLD_TRAINING_MODE = "scaffold"
 SEQ2SEQ_SMOKE_TRAINING_MODE = "seq2seq_smoke"
+LORA_SFT_TRAINING_MODE = "lora_sft"
 
 
 def _load_pilot_json(path: Path) -> Any:
@@ -79,6 +80,12 @@ class TrainingConfig:
     max_eval_examples: int
     learning_rate: float
     per_device_train_batch_size: int
+    gradient_accumulation_steps: int
+    lora_rank: int
+    lora_alpha: int
+    lora_dropout: float
+    dtype: str
+    gradient_checkpointing: bool
     max_source_length: int
     max_target_length: int
 
@@ -300,6 +307,18 @@ def format_seq2seq_input(example: TrainingExample) -> str:
     return f"{example.instruction}\n\nPasaje:\n{example.source_text}"
 
 
+def format_sft_text(example: TrainingExample, eos_token: str = "") -> str:
+    """Format one reconstruction example as causal-LM supervised fine-tuning text."""
+    return (
+        "### Instrucción:\n"
+        f"{example.instruction}\n\n"
+        "### Pasaje:\n"
+        f"{example.source_text}\n\n"
+        "### Respuesta:\n"
+        f"{example.target_text}{eos_token}"
+    )
+
+
 def select_training_examples(
     examples: list[TrainingExample],
     *,
@@ -334,6 +353,142 @@ def _load_seq2seq_training_backend() -> dict[str, Any]:
         "Seq2SeqTrainer": transformers.Seq2SeqTrainer,
         "Seq2SeqTrainingArguments": transformers.Seq2SeqTrainingArguments,
     }
+
+
+def _load_lora_sft_training_backend() -> dict[str, Any]:
+    """Load optional PyTorch PEFT/TRL dependencies only for LoRA SFT runs."""
+    try:
+        torch = importlib.import_module("torch")
+        datasets = importlib.import_module("datasets")
+        peft = importlib.import_module("peft")
+        transformers = importlib.import_module("transformers")
+        trl = importlib.import_module("trl")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "LoRA SFT training requires torch, datasets, transformers, peft, trl, "
+            "and accelerate. Use `scripts/bootstrap_dgx_spark_finetune.sh pytorch` "
+            "inside the NVIDIA DGX Spark container lane."
+        ) from exc
+
+    return {
+        "torch": torch,
+        "Dataset": datasets.Dataset,
+        "AutoModelForCausalLM": transformers.AutoModelForCausalLM,
+        "AutoTokenizer": transformers.AutoTokenizer,
+        "LoraConfig": peft.LoraConfig,
+        "TaskType": peft.TaskType,
+        "SFTConfig": trl.SFTConfig,
+        "SFTTrainer": trl.SFTTrainer,
+    }
+
+
+def torch_dtype_from_name(torch_module: Any, dtype_name: str) -> Any:
+    """Map CLI dtype names to torch dtype objects."""
+    dtype_lookup = {
+        "float32": torch_module.float32,
+        "float16": torch_module.float16,
+        "bfloat16": torch_module.bfloat16,
+    }
+    try:
+        return dtype_lookup[dtype_name]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported dtype {dtype_name!r}") from exc
+
+
+def run_lora_sft_training(
+    *,
+    examples: list[TrainingExample],
+    config: TrainingConfig,
+    adapter_output_dir: Path,
+) -> dict[str, float | int | str]:
+    """Run PyTorch PEFT/TRL LoRA supervised fine-tuning and save the adapter."""
+    train_examples = select_training_examples(
+        examples,
+        split="train",
+        limit=config.max_train_examples,
+    )
+    if not train_examples:
+        raise ValueError("LoRA SFT training requires at least one train example")
+
+    backend = _load_lora_sft_training_backend()
+    torch_dtype = torch_dtype_from_name(backend["torch"], config.dtype)
+    tokenizer = backend["AutoTokenizer"].from_pretrained(config.model_id)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model = backend["AutoModelForCausalLM"].from_pretrained(
+        config.model_id,
+        dtype=torch_dtype,
+        device_map="auto",
+    )
+    if config.gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
+        model.gradient_checkpointing_enable()
+
+    peft_config = backend["LoraConfig"](
+        r=config.lora_rank,
+        lora_alpha=config.lora_alpha,
+        lora_dropout=config.lora_dropout,
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+        task_type=backend["TaskType"].CAUSAL_LM,
+    )
+
+    eos_token = tokenizer.eos_token or ""
+    dataset = backend["Dataset"].from_list(
+        [{"text": format_sft_text(example, eos_token)} for example in train_examples]
+    )
+    training_args = backend["SFTConfig"](
+        output_dir=str(adapter_output_dir / "trainer_state"),
+        max_steps=config.max_steps,
+        learning_rate=config.learning_rate,
+        per_device_train_batch_size=config.per_device_train_batch_size,
+        gradient_accumulation_steps=config.gradient_accumulation_steps,
+        save_strategy="no",
+        remove_unused_columns=False,
+        seed=config.seed,
+        dataset_text_field="text",
+        packing=False,
+        max_length=config.max_source_length,
+        report_to=[],
+        logging_steps=1,
+        gradient_checkpointing=config.gradient_checkpointing,
+    )
+    trainer_kwargs = {
+        "model": model,
+        "train_dataset": dataset,
+        "args": training_args,
+        "peft_config": peft_config,
+    }
+    try:
+        trainer = backend["SFTTrainer"](
+            processing_class=tokenizer,
+            **trainer_kwargs,
+        )
+    except TypeError:
+        trainer = backend["SFTTrainer"](
+            tokenizer=tokenizer,
+            **trainer_kwargs,
+        )
+    train_output = trainer.train()
+    trainer.save_model(str(adapter_output_dir))
+    tokenizer.save_pretrained(str(adapter_output_dir))
+
+    metrics: dict[str, float | int | str] = {
+        str(key): float(value) for key, value in train_output.metrics.items()
+    }
+    metrics["trained_examples"] = len(train_examples)
+    metrics["max_steps"] = config.max_steps
+    metrics["lora_rank"] = config.lora_rank
+    metrics["gradient_accumulation_steps"] = config.gradient_accumulation_steps
+    metrics["artifact_type"] = "lora_sft_adapter"
+    return metrics
 
 
 def run_seq2seq_smoke_training(
@@ -464,8 +619,15 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--training-mode",
         default=SCAFFOLD_TRAINING_MODE,
-        choices=(SCAFFOLD_TRAINING_MODE, SEQ2SEQ_SMOKE_TRAINING_MODE),
-        help="Use scaffold for metadata only, or seq2seq_smoke for a bounded real training run.",
+        choices=(
+            SCAFFOLD_TRAINING_MODE,
+            SEQ2SEQ_SMOKE_TRAINING_MODE,
+            LORA_SFT_TRAINING_MODE,
+        ),
+        help=(
+            "Use scaffold for metadata only, seq2seq_smoke for a bounded health check, "
+            "or lora_sft for PyTorch PEFT/TRL adapter training."
+        ),
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_RECONSTRUCTION_SEED)
     parser.add_argument("--max-steps", type=int, default=5)
@@ -473,6 +635,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-eval-examples", type=int, default=16)
     parser.add_argument("--learning-rate", type=float, default=5e-5)
     parser.add_argument("--per-device-train-batch-size", type=int, default=1)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=1)
+    parser.add_argument("--lora-rank", type=int, default=8)
+    parser.add_argument("--lora-alpha", type=int, default=16)
+    parser.add_argument("--lora-dropout", type=float, default=0.0)
+    parser.add_argument("--dtype", choices=("float32", "float16", "bfloat16"), default="bfloat16")
+    parser.add_argument("--gradient-checkpointing", action="store_true")
     parser.add_argument("--max-source-length", type=int, default=512)
     parser.add_argument("--max-target-length", type=int, default=512)
     parser.add_argument(
@@ -518,6 +686,12 @@ def main(argv: list[str] | None = None) -> int:
         max_eval_examples=args.max_eval_examples,
         learning_rate=args.learning_rate,
         per_device_train_batch_size=args.per_device_train_batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        lora_rank=args.lora_rank,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+        dtype=args.dtype,
+        gradient_checkpointing=args.gradient_checkpointing,
         max_source_length=args.max_source_length,
         max_target_length=args.max_target_length,
     )
@@ -588,6 +762,16 @@ def main(argv: list[str] | None = None) -> int:
                 examples=examples,
                 config=training_config,
                 model_output_dir=model_dir,
+            )
+        elif args.training_mode == LORA_SFT_TRAINING_MODE:
+            artifact_path = adapter_dir
+            adapter_type = "lora_sft"
+            adapter_is_placeholder = False
+            training_status = "trained_lora_sft"
+            training_metrics = run_lora_sft_training(
+                examples=examples,
+                config=training_config,
+                adapter_output_dir=adapter_dir,
             )
         else:
             artifact_path = _write_placeholder_adapter(adapter_dir)

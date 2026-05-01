@@ -276,3 +276,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation note**: Added `plans/phase5_dgx_spark_finetune_playbook.md` and `scripts/bootstrap_dgx_spark_finetune.sh` so the official playbook assumptions are captured in repo-native form instead of living only as shell history.
 
 **Hardware guardrail**: DGX Spark should be treated as a narrow NVIDIA-supported stack, not as a generic CUDA workstation. The bootstrap now defaults to NVIDIA's playbook PyTorch image, checks `nvidia-smi`, `nvcc`, and PyTorch CUDA visibility before installing dependencies, and constrains pip installs so the NGC Torch/CUDA/Triton stack is not silently replaced.
+
+### 2026-05-01 — Phase 5 LoRA SFT Smoke
+
+**Decision**: Add `training_mode=lora_sft` as the first real adapter lane, following NVIDIA's PyTorch PEFT/TRL recipe shape while preserving Rayuela's immutable run contract.
+
+**Compatibility finding**: An unpinned PEFT/TRL install inside `nvcr.io/nvidia/pytorch:25.11-py3` failed before training because `peft 0.19.1` rejected the image's bundled `torchao 0.14.0+git`. We did not upgrade Torch or `torchao`; instead, the bootstrap pins the Hugging Face/PEFT/TRL userland layer to avoid breaking the NVIDIA stack.
+
+**Successful smoke**: `phase5-lora-sft-smoke-20260501b` completed one LoRA SFT optimizer step on `hf-internal-testing/tiny-random-LlamaForCausalLM` with `2` contract examples, rank `4`, and a non-placeholder adapter artifact under `adapter/adapter_model.safetensors`. Train loss was about `10.29`. This is still an execution proof, not a quality result.

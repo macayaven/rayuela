@@ -585,3 +585,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Hardware constraint**: DGX Spark is not yet a generic commodity fine-tuning target. The implementation therefore keeps training inside NVIDIA's validated container lane, checks CUDA visibility before dependency installation, and protects the container's PyTorch/CUDA stack from accidental PyPI replacement.
 
 **For Part 3**: This gives the fine-tuning chapter a grounded engineering narrative: we are not improvising the training stack, but adapting official DGX Spark recipes while preserving the project's reproducibility contract.
+
+### 2026-05-01 — Part 3 Phase 5: First LoRA Adapter Smoke
+
+**Phase**: Part 3 — Phase 5 adapter execution
+
+**What happened**: Added and ran the first PyTorch PEFT/TRL `lora_sft` lane. The unpinned dependency attempt failed on a DGX Spark-specific compatibility issue: latest PEFT rejected the NVIDIA image's bundled `torchao`. The fixed lane pins userland PEFT/TRL/Transformers versions and leaves the NVIDIA Torch/CUDA stack intact.
+
+**Result**: The pinned LoRA smoke completed one optimizer step on a tiny causal model and wrote a non-placeholder adapter artifact. This proves the adapter path exists; it does not yet say anything about literary quality.
+
+**For Part 3**: This is a useful engineering beat for the article: fine-tuning on DGX Spark is not just "install packages and train." The method has to respect the machine-specific NVIDIA stack before any research claim can be trusted.
