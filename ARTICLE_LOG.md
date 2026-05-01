@@ -535,3 +535,7 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **For Part 3**: This is useful article material because it separates three layers that are easy to confuse: serving works, the prompt contract is still fragile, and the actual literary quality of the one scored passage is weak. The next retry can test quality without losing the batch to one missing final answer.
 
 **Follow-up**: The first retry made the same lesson sharper: even a one-case launchcheck can fail before producing final content. The runner now persists that all-failure state as evidence with a zero metric instead of treating it as invisible infrastructure noise.
+
+**Retry2 result**: The repaired runner completed the retry schedule. This is a useful negative result: Nemotron produced no visible reasoning leaks, but Borges -> Bolaño repeatedly failed to emit final content, while Borges -> García Márquez produced scoreable rewrites that still failed both semantic preservation and target-style fit. A second revision improved the scalar objective only slightly (`0.1662` -> `0.1713`).
+
+**For Part 3**: The emerging story is not “prompting solves style transfer.” It is closer to “the experiment teaches us where prompting stops being enough.” The infrastructure can now preserve partial evidence, but the literary transformation remains shallow and brittle.

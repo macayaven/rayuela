@@ -230,3 +230,9 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Next retry**: `plans/reconstruction_guided_schedule.nemotron-fast-retry-20260501.json` repeats the fast-signal shape with fresh immutable run IDs so we can distinguish model quality failures from runner brittleness.
 
 **Follow-up fix**: The first retry showed that an all-failed 1-case launchcheck still exited before writing the failure artifact. Phase 4 now writes completed artifacts even when every case in a run fails, with `failed_cases` populated and the relevant control metric set to `0.0`. This lets the scheduler continue and keeps all-failure runs visible to Phase 6 instead of disappearing into stderr.
+
+**Retry2 result**: `guided-phase4-nemotron-fast-retry2-20260501a` completed all three experiments with no scheduler failures. The all-failed 1-case launchcheck now persisted correctly with metric `0.0`. The 2-case / 1-iteration run produced one scoreable case and one first-iteration generation failure, with mean objective `0.1662`. The 2-case / 2-iteration run again produced one scoreable case and one generation failure, with mean objective `0.1713`.
+
+**Interpretation**: Revision produced a small paired uplift on the one overlapping scoreable case (`+0.0051`), but both the 1- and 2-iteration outputs still failed `semantic_drift` and `target_miss`. There were no visible reasoning leaks. The persistent failing target was Borges -> Bolaño; the scoreable target was Borges -> García Márquez.
+
+**Next decision**: Do not scale Nemotron prompt baselines yet. The runner is now robust enough, but the evidence says the current prompt-only Nemotron lane is unstable for some targets and weak even when scoreable. The next research step should either add a target-specific final-answer rescue pass or move to the Phase 5 fine-tuning scaffold rather than simply increasing batch size.
