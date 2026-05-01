@@ -330,3 +330,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Negative scan**: `phase4-nemotron-teacher-offset6-3cases-20260501a` completed with `0` scoreable cases and `3` failures. The dominant failure remains visible/hidden reasoning separation: the backend can spend the completion on reasoning without final content for some pairs.
 
 **Interpretation**: The data bottleneck is now sharply identified. More batching alone will help slowly, but the higher-leverage fix is a teacher-generation rescue or stricter final-answer prompt that converts reasoning-heavy failures into scoreable passages.
+
+### 2026-05-01 — Phase 4 Tight Rescue Probe
+
+**Implementation**: Tightened the Phase 4 rescue request so it no longer repeats the full original prompt after a reasoning-only failure. The rescue now sends a compact final-answer-only repair prompt with source passage, target style cues, and a short `--rescue-generation-max-tokens` budget. The OpenAI-compatible prompt backend can now honor per-request token overrides.
+
+**Probe**: Reran the previously bad offset-6 teacher batch as `phase4-nemotron-rescue-tight-offset6-3cases-20260501a` with `--rescue-generation-max-tokens 512`. The run completed cleanly, but produced `0` scoreable cases and `3` failures. Each failed first on reasoning-without-final-content and then failed the rescue the same way.
+
+**Interpretation**: The rescue surface is now better controlled, but this Nemotron lane still gets stuck in reasoning-only output for some Cortazar-source teacher pairs. The next high-leverage branch is either disabling reasoning at the serving/template layer if llama.cpp exposes a reliable control, or using a different teacher model for distillation while keeping Nemotron as a comparison lane.
