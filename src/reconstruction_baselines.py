@@ -138,6 +138,8 @@ class IterationRecord:
     accepted_as_best: bool
     visible_meta_suffix_trimmed: bool = False
     visible_meta_suffix_marker: str | None = None
+    rescue_used: bool = False
+    rescue_error_message: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -153,6 +155,8 @@ class IterationRecord:
             "accepted_as_best": self.accepted_as_best,
             "visible_meta_suffix_trimmed": self.visible_meta_suffix_trimmed,
             "visible_meta_suffix_marker": self.visible_meta_suffix_marker,
+            "rescue_used": self.rescue_used,
+            "rescue_error_message": self.rescue_error_message,
         }
 
 
@@ -655,6 +659,43 @@ def build_prompt_request(
     )
 
 
+def build_rescue_prompt_request(
+    *,
+    failed_request: PromptRequest,
+    error_message: str,
+) -> PromptRequest:
+    """Build a strict final-answer-only rescue request after reasoning-only output."""
+    source_text = str(failed_request.metadata["source_text"])
+    target_author = str(failed_request.metadata["target_author"])
+    target_title = str(failed_request.metadata["target_title"])
+    return PromptRequest(
+        case_id=failed_request.case_id,
+        control_mode=failed_request.control_mode,
+        iteration_index=failed_request.iteration_index,
+        template_id=f"{failed_request.template_id}_rescue",
+        source_window_id=failed_request.source_window_id,
+        target_envelope_id=failed_request.target_envelope_id,
+        system_prompt=(
+            "You are in rescue mode. Do not reason visibly. Output only the final rewritten "
+            "Spanish passage. The first visible character must be the first character of the "
+            "passage. No headings, labels, notes, markdown, XML, quotes, analysis, or "
+            "explanation."
+        ),
+        user_prompt=(
+            "The previous generation failed because it returned hidden reasoning without final "
+            f"content: {error_message}\n\n"
+            f"Source passage:\n{source_text}\n\n"
+            f"Target work: {target_title} by {target_author}\n\n"
+            "Using the same task instructions below, write only the final rewritten passage. "
+            "Keep it close in length and preserve the scene and narrative facts.\n\n"
+            "Original task instructions:\n"
+            f"{failed_request.user_prompt}\n\n"
+            "Final passage only:"
+        ),
+        metadata={**failed_request.metadata, "rescue_for_template_id": failed_request.template_id},
+    )
+
+
 def build_score_history(
     score: Any,
     *,
@@ -780,21 +821,37 @@ def run_prompt_case(
                 candidate_text=prior_candidate,
                 prior_score_history=prior_history,
             )
+            rescue_used = False
+            rescue_error_message = None
             try:
                 raw_response = prompt_backend.generate(request)
             except Exception as exc:
-                if not iterations:
-                    raise
-                stop_reason = "prompt_generation_failed"
-                return BaselineCaseResult(
-                    case=case,
-                    prompt_template_id=initial_template.template_id,
-                    iterations=tuple(iterations),
-                    best_iteration_index=best_iteration_index,
-                    stop_reason=stop_reason,
-                    used_training_examples=case.uses_training_examples,
-                    error_message=str(exc),
+                rescue_error_message = str(exc)
+                rescue_request = build_rescue_prompt_request(
+                    failed_request=request,
+                    error_message=rescue_error_message,
                 )
+                try:
+                    raw_response = prompt_backend.generate(rescue_request)
+                    request = rescue_request
+                    rescue_used = True
+                except Exception as rescue_exc:
+                    rescue_error_message = f"{rescue_error_message}; rescue failed: {rescue_exc}"
+                    if not iterations:
+                        raise RuntimeError(rescue_error_message) from rescue_exc
+                    stop_reason = "prompt_generation_failed"
+                    return BaselineCaseResult(
+                        case=case,
+                        prompt_template_id=initial_template.template_id,
+                        iterations=tuple(iterations),
+                        best_iteration_index=best_iteration_index,
+                        stop_reason=stop_reason,
+                        used_training_examples=case.uses_training_examples,
+                        error_message=rescue_error_message,
+                    )
+        if case.control_mode == "copy_source":
+            rescue_used = False
+            rescue_error_message = None
 
         normalized_output = normalize_generated_text(raw_response)
         parsed_text = normalized_output.text or case.source_window.text
@@ -836,6 +893,8 @@ def run_prompt_case(
                 accepted_as_best=accepted_as_best,
                 visible_meta_suffix_trimmed=normalized_output.visible_meta_suffix_trimmed,
                 visible_meta_suffix_marker=normalized_output.visible_meta_suffix_marker,
+                rescue_used=rescue_used,
+                rescue_error_message=rescue_error_message if rescue_used else None,
             )
         )
 

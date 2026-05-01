@@ -539,3 +539,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Retry2 result**: The repaired runner completed the retry schedule. This is a useful negative result: Nemotron produced no visible reasoning leaks, but Borges -> Bolaño repeatedly failed to emit final content, while Borges -> García Márquez produced scoreable rewrites that still failed both semantic preservation and target-style fit. A second revision improved the scalar objective only slightly (`0.1662` -> `0.1713`).
 
 **For Part 3**: The emerging story is not “prompting solves style transfer.” It is closer to “the experiment teaches us where prompting stops being enough.” The infrastructure can now preserve partial evidence, but the literary transformation remains shallow and brittle.
+
+### 2026-05-01 — Part 3 Follow-Up: Rescue Before Fine-Tuning
+
+**Phase**: Part 3 — Phase 4 final-answer recovery
+
+**What happened**: Added a final-answer rescue pass for cases where the model emits hidden reasoning but no final passage. The rescue prompt is deliberately narrow: it does not change the research task, it only asks for the final rewritten passage that the previous call failed to produce.
+
+**Key decision**: Try this before Phase 5 training so we do not mistake a recoverable output-contract failure for a fundamental model-quality failure.
+
+**For Part 3**: This creates a cleaner story boundary. If rescue works, prompt baselines get a fairer test. If rescue fails or the rescued passages remain bad, then the article can justify fine-tuning as the next necessary step rather than a premature escalation.

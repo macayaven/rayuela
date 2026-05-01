@@ -443,7 +443,50 @@ def test_revision_generation_failure_keeps_best_previous_iteration() -> None:
     assert len(result.iterations) == 1
     assert result.best_iteration_index == 0
     assert result.stop_reason == "prompt_generation_failed"
-    assert result.error_message == "model returned reasoning without final content"
+    assert result.error_message is not None
+    assert result.error_message.startswith("model returned reasoning without final content")
+    assert "rescue failed" in result.error_message
+
+
+def test_first_iteration_generation_failure_can_be_rescued() -> None:
+    stylometric_baseline = _manual_baseline(
+        "stylometric",
+        ["sent_len_mean", "mattr"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    semantic_baseline = _manual_baseline(
+        "semantic",
+        ["existential_questioning", "metafiction"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    prompt_backend = FailingPromptBackend(["unused", "rescate final"], fail_at=0)
+    measurement_backend = StubMeasurementBackend(
+        {
+            "rescate final": reconstruction_baselines.CandidateMeasurements(
+                stylometric=np.array([2.5, 2.5]),
+                semantic=np.array([1.2, 1.2]),
+            )
+        }
+    )
+
+    result = reconstruction_baselines.run_prompt_case(
+        case=_baseline_case(),
+        prompt_backend=prompt_backend,
+        measurement_backend=measurement_backend,
+        stylometric_baseline=stylometric_baseline,
+        semantic_baseline=semantic_baseline,
+        success_criteria=_success_criteria(),
+        max_iterations=1,
+    )
+
+    iteration = result.iterations[0]
+
+    assert len(prompt_backend.requests) == 2
+    assert iteration.template_id == "style_shift_v2_rescue"
+    assert iteration.parsed_text == "rescate final"
+    assert iteration.rescue_used is True
+    assert iteration.rescue_error_message == "model returned reasoning without final content"
+    assert "Final passage only" in iteration.user_prompt
 
 
 def test_prompt_baseline_respects_length_guardrails() -> None:

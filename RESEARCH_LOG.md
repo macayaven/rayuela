@@ -236,3 +236,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Interpretation**: Revision produced a small paired uplift on the one overlapping scoreable case (`+0.0051`), but both the 1- and 2-iteration outputs still failed `semantic_drift` and `target_miss`. There were no visible reasoning leaks. The persistent failing target was Borges -> Bolaño; the scoreable target was Borges -> García Márquez.
 
 **Next decision**: Do not scale Nemotron prompt baselines yet. The runner is now robust enough, but the evidence says the current prompt-only Nemotron lane is unstable for some targets and weak even when scoreable. The next research step should either add a target-specific final-answer rescue pass or move to the Phase 5 fine-tuning scaffold rather than simply increasing batch size.
+
+### 2026-05-01 — Final-Answer Rescue Pass
+
+**Decision**: Add a narrow rescue-generation path before moving to Phase 5 fine-tuning. When a prompt call returns hidden reasoning without final content, Phase 4 now sends one strict fallback request that asks only for the final rewritten passage and records `rescue_used` plus the original error in the iteration artifact.
+
+**Why this comes first**: The previous runs showed a mixed failure: serving works and some passages are scoreable, but missing final content can still erase whole cases. The rescue pass separates execution-contract failure from true literary reconstruction failure before we spend time on adapter training.
+
+**Retry plan**: `plans/reconstruction_guided_schedule.nemotron-rescue-20260501.json` repeats the small 1-case and 2-case comparison with fresh immutable run IDs, so we can measure whether rescue improves completion rate and whether the extra recovered outputs remain weak or become useful.
