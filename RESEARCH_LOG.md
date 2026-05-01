@@ -248,3 +248,11 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Result**: `guided-phase4-nemotron-rescue-20260501a` completed all three experiments without scheduler failures. The rescue path recovered the Borges -> Bolaño case that previously failed to emit final content, producing a scoreable passage with objective `0.1425`. However, the output still failed `semantic_drift`, `target_miss`, and `length_guardrail`. The 2-case runs still failed to recover the Borges -> García Márquez case, and the 2-iteration rescue run introduced `stalled_revision` with no objective improvement.
 
 **Conclusion**: Rescue is useful as instrumentation and completion recovery, but it does not solve literary quality. The evidence now strongly favors moving to Phase 5 fine-tuning or a different generation strategy rather than continuing to tune prompt-only Nemotron runs.
+
+### 2026-05-01 — Phase 5 Contract-Smoke Dataset
+
+**Decision**: Start Phase 5 fine-tuning with an output-contract dataset before attempting target-author style transfer. The new `contract_smoke` dataset mode keeps `target_text` equal to `source_text`, but wraps every example in an instruction that requires a Spanish final passage only, with no reasoning, notes, headings, markdown, or explanation.
+
+**Implementation**: `src/reconstruction_train.py` now writes split-specific JSONL datasets under each immutable training run directory. The first scaffold run, `phase5-contract-smoke-20260501a`, produced `3,240` examples from the locked pilot artifacts: `2,270` train, `507` validation, and `463` test examples. The run remains `scaffold_only` and writes placeholder adapter metadata rather than claiming real training.
+
+**Why this matters**: The prompt-only Nemotron evidence showed two separable problems: final-answer reliability and literary quality. Training the contract first attacks the cheaper, more measurable reliability problem and reduces the risk that a later style-transfer adapter is blamed for failures that are really output-format instability.

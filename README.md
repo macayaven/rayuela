@@ -312,9 +312,9 @@ training envelope before real adapter fine-tuning.
 
 The modules provide:
 
-- deterministic `identity_smoke` dataset assembly from the locked pilot split
+- deterministic `identity_smoke` and `contract_smoke` dataset assembly from the locked pilot split
 - immutable run directories with training config, tokenizer config, metrics, and
-  checkpoint metadata
+  split-specific JSONL training datasets, and checkpoint metadata
 - placeholder-adapter handling that is explicit in metadata and rejected by
   inference when a real adapter is not present yet
 
@@ -323,12 +323,14 @@ Targeted Phase 5 verification:
 ```bash
 python3 -m pytest tests/test_reconstruction_training.py -q
 python3 src/reconstruction_train.py --run-id phase5-smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
+python3 src/reconstruction_train.py --run-id phase5-contract-smoke --dataset-mode contract_smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
 ```
 
 Primary outputs:
 
 - `outputs/reconstruction/runs/<run_id>/training_config.json`
 - `outputs/reconstruction/runs/<run_id>/training_metrics.json`
+- `outputs/reconstruction/runs/<run_id>/training_dataset/{train,val,test}.jsonl`
 - `outputs/reconstruction/runs/<run_id>/checkpoint_metadata.json`
 
 ## Reconstruction Analysis

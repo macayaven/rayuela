@@ -553,3 +553,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Result**: The rescue pass worked operationally but not literarily. It recovered the Borges -> Bolaño case into a scoreable passage, but that passage still failed semantic preservation, target-style fit, and length guardrails. Revision added no improvement and became a stalled-revision case.
 
 **For Part 3**: This is a valuable negative result. We can now say prompting was given a fairer chance: normal generation, partial-failure preservation, all-failure artifacts, and final-answer rescue. The remaining failure is no longer just plumbing. It is evidence that the prompt-only lane is not yet producing the kind of controlled literary reconstruction the article needs.
+
+### 2026-05-01 — Part 3 Phase 5: Contract-Smoke Fine-Tuning Dataset
+
+**Phase**: Part 3 — Phase 5 fine-tuning preparation
+
+**What happened**: Added a second Phase 5 dataset mode, `contract_smoke`, and made the training scaffold write split-specific JSONL files inside the immutable run directory. The first run, `phase5-contract-smoke-20260501a`, built `3,240` examples from the locked pilot split: `2,270` train, `507` validation, and `463` test examples. The adapter remains a placeholder; this is a reproducible dataset-and-metadata artifact, not a real trained checkpoint yet.
+
+**Key decision**: Fine-tuning should begin with the output contract, not with maximal literary ambition. The examples intentionally map source text to itself while instructing the model to return only the final Spanish passage and avoid reasoning, notes, headings, markdown, or explanation.
+
+**For Part 3**: This gives the next article a disciplined escalation path. Prompting has now failed after parser support, explicit budgets, prompt tightening, partial-failure preservation, and final-answer rescue. The first training step isolates reliability before style transfer, so later results can say whether adapter training improved the right layer of the problem.
