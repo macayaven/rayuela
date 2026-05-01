@@ -310,3 +310,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **First distillation check**: `phase5-style-distill-nemotron-20260501a` used the available Phase 4 Nemotron rescue/retry artifacts with `min_weighted_objective=0.14`. Only `2` unique teacher examples passed the loose filter (`1` train, `0` val, `1` test), so this is a plumbing proof, not enough data for a meaningful style adapter.
 
 **Next action**: Generate more teacher candidates before training a serious style adapter. The critical bottleneck has moved from contract reliability to teacher-data quality and volume.
+
+### 2026-05-01 — Phase 4 Teacher Batch Control Finding
+
+**Attempt**: Launched `phase4-nemotron-teacher-15cases-20260501a` to broaden teacher data. The run was interrupted after exceeding the useful feedback window without writing case artifacts, then marked failed in the manifest. The issue was operational: Phase 4 wrote artifacts only after the full batch, making larger teacher runs all-or-nothing.
+
+**Fix**: Updated `src/reconstruction_baselines.py` to write prompt-baseline artifacts after each case and to persist partial artifacts on keyboard interruption. This makes future teacher-data batches recoverable and auditable even when one generation call stalls.
+
+**Bounded rerun**: `phase4-nemotron-teacher-3cases-20260501a` completed with `1` scoreable case and `2` failed cases. The scoreable case had weighted objective about `0.118`, below the current loose distillation threshold, so `phase5-style-distill-nemotron-20260501b` still contains only the original `2` usable examples.
+
+**Interpretation**: The style-transfer path is technically wired, but teacher generation is still weak. The next research unit should improve teacher generation/rescue quality before spending DGX Spark training time on a style adapter.
