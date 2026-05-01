@@ -351,6 +351,102 @@ def test_training_dataset_jsonl_is_written_by_split(tmp_path: Path) -> None:
     assert json.loads(train_lines[0])["window_id"] == "w1"
 
 
+def _write_distilled_training_dataset(dataset_dir: Path) -> None:
+    dataset_dir.mkdir(parents=True)
+    records = {
+        "train": [
+            {
+                "window_id": "case-train",
+                "split": "train",
+                "instruction": "Reescribe hacia el sobre estilístico objetivo.",
+                "source_text": "Texto fuente.",
+                "target_text": "Texto docente.",
+                "target_envelope_id": "target:cortazar",
+                "dataset_mode": "style_transfer_distilled",
+                "teacher_metadata": {"weighted_objective": 0.5},
+            }
+        ],
+        "val": [],
+        "test": [
+            {
+                "window_id": "case-test",
+                "split": "test",
+                "instruction": "Reescribe hacia el sobre estilístico objetivo.",
+                "source_text": "Texto fuente dos.",
+                "target_text": "Texto docente dos.",
+                "target_envelope_id": "target:cortazar",
+                "dataset_mode": "style_transfer_distilled",
+                "teacher_metadata": {"weighted_objective": 0.4},
+            }
+        ],
+    }
+    for split, split_records in records.items():
+        (dataset_dir / f"{split}.jsonl").write_text(
+            "\n".join(json.dumps(record, ensure_ascii=False) for record in split_records)
+            + ("\n" if split_records else ""),
+            encoding="utf-8",
+        )
+
+
+def test_load_training_dataset_reads_distilled_split_jsonl(tmp_path: Path) -> None:
+    dataset_dir = tmp_path / "distilled" / "training_dataset"
+    _write_distilled_training_dataset(dataset_dir)
+
+    examples = reconstruction_train.load_training_dataset(dataset_dir)
+
+    assert [example.window_id for example in examples] == ["case-train", "case-test"]
+    assert examples[0].split == "train"
+    assert examples[0].dataset_mode == "style_transfer_distilled"
+    assert examples[0].target_text == "Texto docente."
+
+
+def test_load_training_dataset_rejects_split_mismatch(tmp_path: Path) -> None:
+    dataset_dir = tmp_path / "distilled" / "training_dataset"
+    _write_distilled_training_dataset(dataset_dir)
+    train_path = dataset_dir / "train.jsonl"
+    payload = json.loads(train_path.read_text(encoding="utf-8").splitlines()[0])
+    payload["split"] = "val"
+    train_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="split mismatch"):
+        reconstruction_train.load_training_dataset(dataset_dir)
+
+
+def test_distilled_training_dataset_can_drive_scaffold_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset_dir = tmp_path / "outputs" / "reconstruction" / "style_distill" / "dataset-a"
+    training_dataset_dir = dataset_dir / "training_dataset"
+    _write_distilled_training_dataset(training_dataset_dir)
+    monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(reconstruction_train, "detect_git_sha", lambda project_root: "feedface")
+
+    exit_code = reconstruction_train.main(
+        [
+            "--run-id",
+            "phase5-style-distilled-scaffold",
+            "--dataset-mode",
+            "style_transfer_distilled",
+            "--training-dataset-dir",
+            str(training_dataset_dir),
+        ]
+    )
+
+    run_dir = tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-style-distilled-scaffold"
+    config = json.loads((run_dir / "training_config.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "training_metrics.json").read_text(encoding="utf-8"))
+    copied_train = (run_dir / "training_dataset" / "train.jsonl").read_text(encoding="utf-8")
+
+    assert exit_code == 0
+    assert config["dataset_mode"] == "style_transfer_distilled"
+    assert config["training_dataset_dir"].endswith(
+        "outputs/reconstruction/style_distill/dataset-a/training_dataset"
+    )
+    assert metrics["split_counts"] == {"train": 1, "val": 0, "test": 1}
+    assert json.loads(copied_train)["target_text"] == "Texto docente."
+
+
 def test_seq2seq_input_format_includes_instruction_and_source() -> None:
     example = reconstruction_train.TrainingExample(
         window_id="w1",
@@ -723,6 +819,7 @@ def test_optional_wandb_logging_records_run_metadata(monkeypatch: pytest.MonkeyP
         gradient_checkpointing=False,
         max_source_length=512,
         max_target_length=512,
+        training_dataset_dir=None,
     )
 
     logger = reconstruction_train.build_experiment_logger(

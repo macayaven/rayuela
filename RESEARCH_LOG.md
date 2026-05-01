@@ -300,3 +300,13 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Contract probe**: Ran the repo-native adapter/base comparison on the first `32` validation examples. The adapter produced `0/32` empty outputs, `0/32` prompt-scaffold echoes, and `1/32` outputs with forbidden contract markers. The unfine-tuned base model produced `0/32` empty outputs, `0/32` prompt-scaffold echoes, and `10/32` outputs with forbidden contract markers.
 
 **Interpretation**: The reliability signal strengthened from the first `8`-example probe to a larger `32`-example probe. This still does not establish literary reconstruction quality, but it makes the next experiment clearer: move from contract reliability toward controlled target-style evaluation while preserving the same container and probe discipline.
+
+### 2026-05-01 — Phase 5 Style-Transfer Distillation Bridge
+
+**Decision**: The next adapter should not be trained directly from raw corpus windows with fake targets. It needs distilled teacher examples: Phase 4 prompt-generated rewrites that already have source passages, target envelopes, parsed final text, and score histories.
+
+**Implementation**: Added `plans/phase5_style_transfer_adapter_plan.md` and `src/reconstruction_style_distill.py`. The distiller converts scored `prompt_baseline_cases.json` artifacts into split-specific `style_transfer_distilled` SFT JSONL while keeping source/generated passages in ignored `outputs/`. `src/reconstruction_train.py` can now consume a prebuilt `--training-dataset-dir` for scaffold or LoRA runs without rebuilding examples from the raw corpus.
+
+**First distillation check**: `phase5-style-distill-nemotron-20260501a` used the available Phase 4 Nemotron rescue/retry artifacts with `min_weighted_objective=0.14`. Only `2` unique teacher examples passed the loose filter (`1` train, `0` val, `1` test), so this is a plumbing proof, not enough data for a meaningful style adapter.
+
+**Next action**: Generate more teacher candidates before training a serious style adapter. The critical bottleneck has moved from contract reliability to teacher-data quality and volume.

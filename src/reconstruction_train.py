@@ -36,9 +36,15 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_ID = "google/mt5-xl"
 DEFAULT_DATASET_MODE = "identity_smoke"
 CONTRACT_DATASET_MODE = "contract_smoke"
+STYLE_TRANSFER_DISTILLED_DATASET_MODE = "style_transfer_distilled"
 SCAFFOLD_TRAINING_MODE = "scaffold"
 SEQ2SEQ_SMOKE_TRAINING_MODE = "seq2seq_smoke"
 LORA_SFT_TRAINING_MODE = "lora_sft"
+SUPPORTED_DATASET_MODES = {
+    DEFAULT_DATASET_MODE,
+    CONTRACT_DATASET_MODE,
+    STYLE_TRANSFER_DISTILLED_DATASET_MODE,
+}
 
 
 def _load_pilot_json(path: Path) -> Any:
@@ -88,6 +94,7 @@ class TrainingConfig:
     gradient_checkpointing: bool
     max_source_length: int
     max_target_length: int
+    training_dataset_dir: str | None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -227,7 +234,8 @@ def build_training_examples(
     if dataset_mode not in {DEFAULT_DATASET_MODE, CONTRACT_DATASET_MODE}:
         raise ValueError(
             f"Unsupported dataset_mode {dataset_mode!r}; "
-            f"supported modes: {DEFAULT_DATASET_MODE!r}, {CONTRACT_DATASET_MODE!r}."
+            f"supported corpus-derived modes: {DEFAULT_DATASET_MODE!r}, "
+            f"{CONTRACT_DATASET_MODE!r}."
         )
 
     assignment_lookup = split_manifest.assignment_lookup()
@@ -275,6 +283,37 @@ def build_training_examples(
                 dataset_mode=dataset_mode,
             )
         )
+    return examples
+
+
+def load_training_dataset(dataset_dir: Path) -> list[TrainingExample]:
+    """Load split JSONL examples from a distilled external dataset directory."""
+    examples: list[TrainingExample] = []
+    for split in ("train", "val", "test"):
+        split_path = dataset_dir / f"{split}.jsonl"
+        if not split_path.exists():
+            raise ValueError(f"missing distilled dataset split: {split_path}")
+        with split_path.open(encoding="utf-8") as handle:
+            for line in handle:
+                payload = json.loads(line)
+                payload_split = str(payload["split"])
+                if payload_split != split:
+                    raise ValueError(
+                        f"split mismatch in {split_path}: payload split {payload_split!r}"
+                    )
+                examples.append(
+                    TrainingExample(
+                        window_id=str(payload["window_id"]),
+                        split=payload_split,
+                        instruction=str(payload["instruction"]),
+                        source_text=str(payload["source_text"]),
+                        target_text=str(payload["target_text"]),
+                        target_envelope_id=str(payload["target_envelope_id"]),
+                        dataset_mode=str(payload["dataset_mode"]),
+                    )
+                )
+    if not examples:
+        raise ValueError(f"distilled dataset {dataset_dir} did not contain any examples")
     return examples
 
 
@@ -615,7 +654,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", required=True, help="Unique run identifier.")
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
-    parser.add_argument("--dataset-mode", default=DEFAULT_DATASET_MODE)
+    parser.add_argument(
+        "--dataset-mode", default=DEFAULT_DATASET_MODE, choices=SUPPORTED_DATASET_MODES
+    )
     parser.add_argument(
         "--training-mode",
         default=SCAFFOLD_TRAINING_MODE,
@@ -652,8 +693,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--corpus-output-dir", type=Path, default=PROJECT_ROOT / "outputs" / "corpus"
     )
-    parser.add_argument("--split-manifest-path", type=Path, required=True)
-    parser.add_argument("--target-envelopes-path", type=Path, required=True)
+    parser.add_argument("--split-manifest-path", type=Path, default=None)
+    parser.add_argument("--target-envelopes-path", type=Path, default=None)
+    parser.add_argument(
+        "--training-dataset-dir",
+        type=Path,
+        default=None,
+        help="Load prebuilt split JSONL examples from this directory instead of corpus windows.",
+    )
     parser.add_argument(
         "--allow-corpus-discovery",
         action="store_true",
@@ -669,6 +716,19 @@ def main(argv: list[str] | None = None) -> int:
     """Run a Phase 5 scaffold pass that prepares training artifacts."""
     args = build_argument_parser().parse_args(argv)
     paths = ReconstructionPaths(project_root=PROJECT_ROOT)
+    using_external_dataset = args.training_dataset_dir is not None
+    if using_external_dataset and args.dataset_mode != STYLE_TRANSFER_DISTILLED_DATASET_MODE:
+        raise ValueError(
+            "--training-dataset-dir requires --dataset-mode "
+            f"{STYLE_TRANSFER_DISTILLED_DATASET_MODE}"
+        )
+    if not using_external_dataset and (
+        args.split_manifest_path is None or args.target_envelopes_path is None
+    ):
+        raise ValueError(
+            "--split-manifest-path and --target-envelopes-path are required for "
+            "corpus-derived training datasets"
+        )
 
     seed_everything(args.seed)
     run_dir = prepare_run_directory(args.run_id, paths=paths)
@@ -694,6 +754,11 @@ def main(argv: list[str] | None = None) -> int:
         gradient_checkpointing=args.gradient_checkpointing,
         max_source_length=args.max_source_length,
         max_target_length=args.max_target_length,
+        training_dataset_dir=(
+            to_project_relative(args.training_dataset_dir, paths.project_root)
+            if args.training_dataset_dir is not None
+            else None
+        ),
     )
     git_sha = args.git_sha or detect_git_sha(paths.project_root)
     config_path = run_dir / "training_config.json"
@@ -717,6 +782,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "dataset_mode": args.dataset_mode,
                 "training_mode": args.training_mode,
+                "training_dataset_dir": training_config.training_dataset_dir,
             },
             corpus_manifest=to_project_relative(
                 args.corpus_output_dir / "corpus_metadata.json",
@@ -733,23 +799,26 @@ def main(argv: list[str] | None = None) -> int:
     run_status = RunStatus.RUNNING
     error_message: str | None = None
     try:
-        split_manifest = load_split_manifest(args.split_manifest_path)
-        target_envelopes = load_target_envelopes(args.target_envelopes_path)
+        if using_external_dataset:
+            examples = load_training_dataset(args.training_dataset_dir)
+        else:
+            split_manifest = load_split_manifest(args.split_manifest_path)
+            target_envelopes = load_target_envelopes(args.target_envelopes_path)
 
-        windows = extract_windows(
-            corpus_dir=args.corpus_dir,
-            corpus_output_dir=args.corpus_output_dir,
-            allow_discovery=args.allow_corpus_discovery,
-            min_words=split_manifest.min_words,
-            max_words=split_manifest.max_words,
-        )
+            windows = extract_windows(
+                corpus_dir=args.corpus_dir,
+                corpus_output_dir=args.corpus_output_dir,
+                allow_discovery=args.allow_corpus_discovery,
+                min_words=split_manifest.min_words,
+                max_words=split_manifest.max_words,
+            )
 
-        examples = build_training_examples(
-            windows,
-            split_manifest,
-            target_envelopes,
-            dataset_mode=args.dataset_mode,
-        )
+            examples = build_training_examples(
+                windows,
+                split_manifest,
+                target_envelopes,
+                dataset_mode=args.dataset_mode,
+            )
         split_counts = count_examples_by_split(examples)
         dataset_paths = write_training_dataset(examples, dataset_dir)
         training_metrics: dict[str, float | int | str]

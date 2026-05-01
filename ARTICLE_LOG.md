@@ -615,3 +615,13 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Result**: On a `32`-example held-out contract probe, the adapter reduced forbidden output-contract markers from `10/32` for the base model to `1/32` for the adapter. Both runs had zero empty outputs and zero prompt-scaffold echoes.
 
 **For Part 3**: This gives the article a stronger engineering-to-research transition: the first fine-tune is not just executable, it changes a measurable reliability behavior. The next article claim should still avoid saying the model has learned Cortazar style until a separate style and quality evaluation is run.
+
+### 2026-05-01 — Part 3 Phase 5: Style-Transfer Bridge
+
+**Phase**: Part 3 — Phase 5 style-transfer preparation
+
+**What happened**: Wrote the actionable style-transfer adapter plan and added a distillation bridge from scored Phase 4 teacher generations into Phase 5 supervised training JSONL.
+
+**Result**: The first pass over existing Nemotron teacher artifacts produced only `2` usable unique examples above a loose score threshold. That is useful because it exposes the real bottleneck: we need more and better teacher rewrites before a style adapter can be meaningful.
+
+**For Part 3**: This is a strong methodology beat for the article. The research is not jumping from "train an adapter" to "Cortazar style"; it inserts a measurable teacher-data layer between prompt experiments and fine-tuning.
