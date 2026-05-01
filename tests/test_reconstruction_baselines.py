@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Literal
 
@@ -558,6 +559,39 @@ def test_prompt_baseline_does_not_train_on_eval_examples() -> None:
         )
 
 
+def test_build_style_shift_cases_applies_offset_before_limit() -> None:
+    source_windows = [
+        replace(_source_window(), window_id=f"source:{index}", work_id=f"source_work_{index}")
+        for index in range(3)
+    ]
+    target_envelopes = [
+        replace(_target_envelope(), envelope_id=f"target:{index}", work_id=f"target_work_{index}")
+        for index in range(2)
+    ]
+
+    all_cases = reconstruction_baselines.build_style_shift_cases(
+        source_windows,
+        target_envelopes,
+    )
+    selected = reconstruction_baselines.build_style_shift_cases(
+        source_windows,
+        target_envelopes,
+        case_offset=2,
+        max_cases=3,
+    )
+
+    assert [case.case_id for case in selected] == [case.case_id for case in all_cases[2:5]]
+
+
+def test_build_style_shift_cases_rejects_negative_offset() -> None:
+    with pytest.raises(ValueError, match="case_offset must be non-negative"):
+        reconstruction_baselines.build_style_shift_cases(
+            [_source_window()],
+            [_target_envelope()],
+            case_offset=-1,
+        )
+
+
 def test_openai_prompt_backend_passes_seed_to_chat_completion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -585,10 +619,11 @@ def test_openai_prompt_backend_passes_seed_to_chat_completion(
         completions = _Completions()
 
     class _Client:
-        def __init__(self, *, base_url: str, api_key: str) -> None:
+        def __init__(self, *, base_url: str, api_key: str, timeout: float) -> None:
             calls["client_init"] = {
                 "base_url": base_url,
                 "api_key": api_key,
+                "timeout": timeout,
             }
             self.chat = _Chat()
 
@@ -619,6 +654,7 @@ def test_openai_prompt_backend_passes_seed_to_chat_completion(
     assert calls["client_init"] == {
         "base_url": "http://localhost:8000/v1",
         "api_key": "not-needed",
+        "timeout": 600.0,
     }
     assert calls["create"] == {
         "model": "Qwen/Qwen3.5-27B-FP8",
@@ -666,8 +702,8 @@ def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
         completions = _Completions()
 
     class _Client:
-        def __init__(self, *, base_url: str, api_key: str) -> None:
-            del base_url, api_key
+        def __init__(self, *, base_url: str, api_key: str, timeout: float) -> None:
+            del base_url, api_key, timeout
             self.chat = _Chat()
 
     monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
@@ -728,8 +764,8 @@ def test_openai_prompt_backend_strips_visible_reasoning_prefix_in_final_content(
         completions = _Completions()
 
     class _Client:
-        def __init__(self, *, base_url: str, api_key: str) -> None:
-            del base_url, api_key
+        def __init__(self, *, base_url: str, api_key: str, timeout: float) -> None:
+            del base_url, api_key, timeout
             self.chat = _Chat()
 
     monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
@@ -786,8 +822,8 @@ def test_openai_prompt_backend_fails_when_reasoning_exists_without_final_content
         completions = _Completions()
 
     class _Client:
-        def __init__(self, *, base_url: str, api_key: str) -> None:
-            del base_url, api_key
+        def __init__(self, *, base_url: str, api_key: str, timeout: float) -> None:
+            del base_url, api_key, timeout
             self.chat = _Chat()
 
     monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
@@ -857,10 +893,11 @@ def test_corpus_measurement_backend_passes_semantic_generation_max_tokens(
     calls: dict[str, object] = {}
 
     class _Client:
-        def __init__(self, *, base_url: str, api_key: str) -> None:
+        def __init__(self, *, base_url: str, api_key: str, timeout: float) -> None:
             calls["client_init"] = {
                 "base_url": base_url,
                 "api_key": api_key,
+                "timeout": timeout,
             }
 
     def _extract_chapter(
@@ -916,6 +953,7 @@ def test_corpus_measurement_backend_passes_semantic_generation_max_tokens(
     assert calls["client_init"] == {
         "base_url": "http://localhost:8000/v1",
         "api_key": "not-needed",
+        "timeout": 600.0,
     }
     assert np.array_equal(vector, np.array([4.0, 7.0]))
     assert calls["extract_chapter"] == {
