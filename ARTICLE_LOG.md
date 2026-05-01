@@ -483,3 +483,83 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Key decision**: Hidden reasoning has to be handled across the whole experiment surface, not only in the saved rewrite. The semantic evaluator now gets its own explicit token budget and the same parser-aware final-content extraction logic as the prompt generator.
 
 **For Part 3**: This sharpens the narrative around failure attribution. A batch that dies because the evaluator never received final JSON should not be read as evidence that the rewrite was semantically bad. It is an execution-contract failure, and the article can now say that more honestly.
+
+### 2026-03-11 — Part 3 Follow-Up: Prompt Tightening Before Model Switching
+
+**Phase**: Part 3 — Phase 4 prompt-contract refinement
+
+**What happened**: After the first clean launchcheck from `main`, the next blocker was not semantic parsing anymore. Qwen still spent the full visible-generation budget in hidden reasoning and never emitted a final passage. Instead of immediately switching to Nemotron or adding model/judge decoupling, we tightened the rewrite prompt contract and versioned it honestly.
+
+**Key decision**: The new `style_shift_v2` / `revise_v2` templates keep hidden reasoning enabled but explicitly require the visible answer to begin with the passage itself and forbid labels, headings, markdown, XML tags, quotes, or explanation text. This is the cheapest plausible fix, so it should be tried before broadening the model surface.
+
+**For Part 3**: This helps the story stay clean. If the tightened prompt works, we can say the failure mode was still mostly contractual. If it does not, then a later model pivot or generation/measurement decoupling will be easier to justify.
+
+### 2026-03-11 — Part 3 Follow-Up: Trim Commentary, Keep the Audit Trail
+
+**Phase**: Part 3 — Phase 4 output-contract hardening
+
+**What happened**: A bounded Nemotron launchcheck completed, but the generated rewrite still appended a visible `**Nota:**` section describing what had been changed. We hardened the Phase 4 parser so obvious post-passage commentary markers are trimmed before scoring while the iteration artifact keeps explicit audit fields showing that the model emitted them.
+
+**Key decision**: The measured object for this phase is the rewritten passage, not the model's self-explanation. We should keep evidence of the output-contract violation, but we should not let a trailing note pollute the literary score.
+
+**For Part 3**: This gives the article a cleaner methodological claim. When we say a rewrite scored poorly, the reader can trust that we are talking about the passage itself rather than about a markdown-style explanation bolted onto the end of it.
+
+### 2026-03-11 — Part 3 Follow-Up: The Official Spark Nemotron Path
+
+**Phase**: Part 3 — Phase 4 infrastructure alignment
+
+**What happened**: We stopped treating the local Nemotron Nano vLLM workaround as the main direction and re-centered on NVIDIA's own DGX Spark playbook. The repo now includes `src/reconstruction_spark_nemotron.py`, a helper that turns the published Nemotron 3 Nano `llama.cpp` setup into explicit build, download, server, and bounded launchcheck commands.
+
+**Key decision**: The meaningful methodological gain is not merely “try another model.” It is to use the reasoning-aware interface NVIDIA actually documents for Spark, where hidden reasoning and final answer content are separated by design instead of inferred from visible markers.
+
+**For Part 3**: This is a strong behind-the-scenes point for the third article. The same model family can look either chaotic or disciplined depending on the contract through which you talk to it. Picking the right serving surface becomes part of the research method, not just an implementation footnote.
+
+### 2026-04-30 — Part 3 Unattended Run: Fast Signal First
+
+**Phase**: Part 3 — Phase 4 live experiment execution
+
+**What happened**: Before launching the unattended session, the runtime check found that the Qwen endpoint on port `8000` was not usable, but the Spark Nemotron `llama.cpp` endpoint on port `30000` was healthy. A tiny probe also showed the central failure mode clearly: too small a token budget produced hidden reasoning without final content, while a larger budget produced the final answer.
+
+**Key decision**: The session should start with the healthy Nemotron lane and use a fast-first-signal schedule: 1 case / 1 iteration first, then small paired iteration comparisons, then broader confirmation only if time remains.
+
+**For Part 3**: This gives the article a concrete methodological beat: the experiment is no longer just about model choice, but about the contract between reasoning, token budget, and the measurable literary artifact. The first question is whether the system can reliably produce a clean passage at all.
+
+### 2026-05-01 — Part 3 Follow-Up: Viable Lane, Brittle Runner
+
+**Phase**: Part 3 — Phase 4 live experiment repair
+
+**What happened**: The unattended Nemotron schedule gave a clear split result. The 1-case launchcheck produced a clean passage with no visible reasoning leak, but the larger runs failed when Nemotron spent the response in hidden reasoning and never emitted final content for one case or revision.
+
+**Key decision**: Treat that as a runner robustness problem before drawing a broad model-quality conclusion. The Phase 4 runner now preserves partial evidence: first-iteration failures are logged as case failures, and revision failures keep the best previously scored iteration instead of crashing the whole run.
+
+**For Part 3**: This is useful article material because it separates three layers that are easy to confuse: serving works, the prompt contract is still fragile, and the actual literary quality of the one scored passage is weak. The next retry can test quality without losing the batch to one missing final answer.
+
+**Follow-up**: The first retry made the same lesson sharper: even a one-case launchcheck can fail before producing final content. The runner now persists that all-failure state as evidence with a zero metric instead of treating it as invisible infrastructure noise.
+
+**Retry2 result**: The repaired runner completed the retry schedule. This is a useful negative result: Nemotron produced no visible reasoning leaks, but Borges -> Bolaño repeatedly failed to emit final content, while Borges -> García Márquez produced scoreable rewrites that still failed both semantic preservation and target-style fit. A second revision improved the scalar objective only slightly (`0.1662` -> `0.1713`).
+
+**For Part 3**: The emerging story is not “prompting solves style transfer.” It is closer to “the experiment teaches us where prompting stops being enough.” The infrastructure can now preserve partial evidence, but the literary transformation remains shallow and brittle.
+
+### 2026-05-01 — Part 3 Follow-Up: Rescue Before Fine-Tuning
+
+**Phase**: Part 3 — Phase 4 final-answer recovery
+
+**What happened**: Added a final-answer rescue pass for cases where the model emits hidden reasoning but no final passage. The rescue prompt is deliberately narrow: it does not change the research task, it only asks for the final rewritten passage that the previous call failed to produce.
+
+**Key decision**: Try this before Phase 5 training so we do not mistake a recoverable output-contract failure for a fundamental model-quality failure.
+
+**For Part 3**: This creates a cleaner story boundary. If rescue works, prompt baselines get a fairer test. If rescue fails or the rescued passages remain bad, then the article can justify fine-tuning as the next necessary step rather than a premature escalation.
+
+**Result**: The rescue pass worked operationally but not literarily. It recovered the Borges -> Bolaño case into a scoreable passage, but that passage still failed semantic preservation, target-style fit, and length guardrails. Revision added no improvement and became a stalled-revision case.
+
+**For Part 3**: This is a valuable negative result. We can now say prompting was given a fairer chance: normal generation, partial-failure preservation, all-failure artifacts, and final-answer rescue. The remaining failure is no longer just plumbing. It is evidence that the prompt-only lane is not yet producing the kind of controlled literary reconstruction the article needs.
+
+### 2026-05-01 — Part 3 Phase 5: Contract-Smoke Fine-Tuning Dataset
+
+**Phase**: Part 3 — Phase 5 fine-tuning preparation
+
+**What happened**: Added a second Phase 5 dataset mode, `contract_smoke`, and made the training scaffold write split-specific JSONL files inside the immutable run directory. The first run, `phase5-contract-smoke-20260501a`, built `3,240` examples from the locked pilot split: `2,270` train, `507` validation, and `463` test examples. The adapter remains a placeholder; this is a reproducible dataset-and-metadata artifact, not a real trained checkpoint yet.
+
+**Key decision**: Fine-tuning should begin with the output contract, not with maximal literary ambition. The examples intentionally map source text to itself while instructing the model to return only the final Spanish passage and avoid reasoning, notes, headings, markdown, or explanation.
+
+**For Part 3**: This gives the next article a disciplined escalation path. Prompting has now failed after parser support, explicit budgets, prompt tightening, partial-failure preservation, and final-answer rescue. The first training step isolates reliability before style transfer, so later results can say whether adapter training improved the right layer of the problem.

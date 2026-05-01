@@ -184,3 +184,75 @@ What is the best way to manage your context, so you don't need to auto-compact a
 **Implementation**: `src/semantic_extraction.py` now uses the same parser-aware message-content helper as the prompt generator. It accepts an explicit `max_tokens` budget, defaults that budget higher under the Qwen reasoning parser, and raises a clear error when the model returns reasoning without final JSON. `src/reconstruction_baselines.py` now exposes `--semantic-generation-max-tokens` and records it in the run manifest so the measurement budget is part of the saved experiment contract.
 
 **Why this matters**: The failed hidden-reasoning run showed that fixing only the rewrite generator was not enough. The evaluator can also starve before it emits structured output. Making that budget explicit closes a real gap in the methodology and avoids wasting GPU time on retries that can never yield a score.
+
+### 2026-03-11 — Prompt Contract Tightening for Hidden Reasoning
+
+**Decision**: Before swapping models or adding more orchestration complexity, we should try a narrower intervention: keep Qwen as the active lane but tighten the visible-output contract in the rewrite prompts. That is cheaper and more interpretable than immediately pivoting to a different model family.
+
+**Implementation**: The default rewrite templates are now versioned as `style_shift_v2` and `revise_v2`. They explicitly tell the model to think silently, keep reasoning private, and begin the visible answer immediately with the rewritten passage itself, with no labels, markdown, XML tags, quotes, or explanatory text. The Phase 4 manifest now records the new template ID instead of silently reusing the old `v1` label.
+
+**Why this matters**: This is the lowest-complexity change that could plausibly fix the current blocker. If it works, we keep the research lane simple and move toward the fine-tuning prerequisites faster. If it fails, we will know the remaining problem is not just sloppy prompt contract wording.
+
+### 2026-03-11 — Visible Meta-Suffix Trimming for Prompt Baselines
+
+**Decision**: Some models now satisfy the basic rewrite call but still append visible commentary after the passage, for example `**Nota:**` plus a bullet list describing the stylistic changes. That suffix should not be scored as part of the literary rewrite.
+
+**Implementation**: `src/reconstruction_baselines.py` now trims obvious post-passage meta-commentary markers such as `Nota:`, `Note:`, `Explicación:`, `Commentary:`, `Justificación:`, `Cambios realizados:`, and `Changes made:` after normalization. The saved iteration record keeps audit fields indicating whether a visible meta suffix was trimmed and which marker triggered it. The Phase 4 summary/report also exposes a per-control trimmed-case count.
+
+**Why this matters**: This is a low-complexity way to keep the measured object aligned with the research target. We still record that the model violated the output contract, but we no longer let an explanatory suffix dominate the score or the close-reading sample.
+
+### 2026-03-11 — Official Spark Nemotron Lane Reframed Around llama.cpp
+
+**Decision**: The clean official Nemotron reasoning-control lane for this workstation is not the local Nano-vLLM plugin experiment. It is the DGX Spark playbook path based on Nemotron 3 Nano through `llama.cpp`.
+
+**Implementation**: Added `src/reconstruction_spark_nemotron.py` to codify the published Spark commands into a testable helper that can print the build/bootstrap steps, install the dedicated Hugging Face CLI venv, clone and compile `llama.cpp` for `SM_121`, download the official GGUF artifact, and write a bounded Phase 4 launchcheck plan targeting the local OpenAI-compatible endpoint. The dead-end `vllm-nemotron-nano` compose service was removed so the repo no longer presents that experimental workaround as a first-class path.
+
+**Why this matters**: This reduces methodological ambiguity. If we test Nemotron as a reasoning-aware generation lane on DGX Spark, we should do it through the surface NVIDIA actually documents for Spark rather than through a fragile local adaptation that already proved too heavy and slow for the current box. That keeps the added complexity justified by a clearer experiment contract.
+
+### 2026-04-30 — Unattended Fast-Signal Nemotron Schedule
+
+**Decision**: Start the unattended run on the healthy Spark Nemotron `llama.cpp` endpoint at `http://localhost:30000/v1` instead of waiting for the Qwen endpoint. At launch time, port `8000` was occupied by a failing vLLM vision container that reset `/v1/models`, while the Nemotron server returned a valid model list for `Nemotron-3-Nano-30B-A3B-UD-Q8_K_XL.gguf`.
+
+**Runtime fact**: A direct 16-token chat probe returned hidden reasoning but no final content; the same probe with 256 completion tokens returned final `content`. This confirms that the generation budget is an execution-contract variable for the `llama.cpp` reasoning lane, not a cosmetic setting.
+
+**Plan**: `plans/reconstruction_guided_schedule.nemotron-fast-20260430.json` starts with a 1-case/1-iteration launchcheck, then 2-case 1-vs-2 iteration comparisons, then a 4-case 2-iteration confirmation, with a 4-case 3-iteration optional tail if the earlier runs finish inside the budget. The first useful artifact should be `outputs/reconstruction/runs/phase4-nemotron-fast-20260430a/prompt_baseline_summary.json`.
+
+**Why this matters**: The schedule is optimized for early evidence rather than maximum batch size. It should reveal quickly whether the hidden-reasoning contract produces scoreable rewritten passages before spending the rest of the night on broader comparison.
+
+### 2026-05-01 — Nemotron Schedule Result and Retry Fix
+
+**Observed result**: `guided-phase4-nemotron-fast-20260430a` completed quickly. The 1-case launchcheck succeeded with mean weighted objective `0.1581` and no visible reasoning leak, but all larger experiments failed because the model sometimes returned hidden reasoning without final `content`.
+
+**Interpretation**: The Spark Nemotron lane is viable enough to produce a clean scoreable passage, but the Phase 4 runner was too brittle: one first-iteration generation failure crashed the whole run, and one revision failure discarded the already scored first iteration.
+
+**Implementation**: Phase 4 now records first-iteration case failures separately under `case_failures` and continues the remaining cases when at least one case is scoreable. If a revision generation fails after an earlier scoreable iteration, the run preserves the best previous iteration with `stop_reason=prompt_generation_failed` and stores the error message. The prompts also now tell the model to keep private reasoning short and reserve most of the completion budget for the final passage.
+
+**Next retry**: `plans/reconstruction_guided_schedule.nemotron-fast-retry-20260501.json` repeats the fast-signal shape with fresh immutable run IDs so we can distinguish model quality failures from runner brittleness.
+
+**Follow-up fix**: The first retry showed that an all-failed 1-case launchcheck still exited before writing the failure artifact. Phase 4 now writes completed artifacts even when every case in a run fails, with `failed_cases` populated and the relevant control metric set to `0.0`. This lets the scheduler continue and keeps all-failure runs visible to Phase 6 instead of disappearing into stderr.
+
+**Retry2 result**: `guided-phase4-nemotron-fast-retry2-20260501a` completed all three experiments with no scheduler failures. The all-failed 1-case launchcheck now persisted correctly with metric `0.0`. The 2-case / 1-iteration run produced one scoreable case and one first-iteration generation failure, with mean objective `0.1662`. The 2-case / 2-iteration run again produced one scoreable case and one generation failure, with mean objective `0.1713`.
+
+**Interpretation**: Revision produced a small paired uplift on the one overlapping scoreable case (`+0.0051`), but both the 1- and 2-iteration outputs still failed `semantic_drift` and `target_miss`. There were no visible reasoning leaks. The persistent failing target was Borges -> Bolaño; the scoreable target was Borges -> García Márquez.
+
+**Next decision**: Do not scale Nemotron prompt baselines yet. The runner is now robust enough, but the evidence says the current prompt-only Nemotron lane is unstable for some targets and weak even when scoreable. The next research step should either add a target-specific final-answer rescue pass or move to the Phase 5 fine-tuning scaffold rather than simply increasing batch size.
+
+### 2026-05-01 — Final-Answer Rescue Pass
+
+**Decision**: Add a narrow rescue-generation path before moving to Phase 5 fine-tuning. When a prompt call returns hidden reasoning without final content, Phase 4 now sends one strict fallback request that asks only for the final rewritten passage and records `rescue_used` plus the original error in the iteration artifact.
+
+**Why this comes first**: The previous runs showed a mixed failure: serving works and some passages are scoreable, but missing final content can still erase whole cases. The rescue pass separates execution-contract failure from true literary reconstruction failure before we spend time on adapter training.
+
+**Retry plan**: `plans/reconstruction_guided_schedule.nemotron-rescue-20260501.json` repeats the small 1-case and 2-case comparison with fresh immutable run IDs, so we can measure whether rescue improves completion rate and whether the extra recovered outputs remain weak or become useful.
+
+**Result**: `guided-phase4-nemotron-rescue-20260501a` completed all three experiments without scheduler failures. The rescue path recovered the Borges -> Bolaño case that previously failed to emit final content, producing a scoreable passage with objective `0.1425`. However, the output still failed `semantic_drift`, `target_miss`, and `length_guardrail`. The 2-case runs still failed to recover the Borges -> García Márquez case, and the 2-iteration rescue run introduced `stalled_revision` with no objective improvement.
+
+**Conclusion**: Rescue is useful as instrumentation and completion recovery, but it does not solve literary quality. The evidence now strongly favors moving to Phase 5 fine-tuning or a different generation strategy rather than continuing to tune prompt-only Nemotron runs.
+
+### 2026-05-01 — Phase 5 Contract-Smoke Dataset
+
+**Decision**: Start Phase 5 fine-tuning with an output-contract dataset before attempting target-author style transfer. The new `contract_smoke` dataset mode keeps `target_text` equal to `source_text`, but wraps every example in an instruction that requires a Spanish final passage only, with no reasoning, notes, headings, markdown, or explanation.
+
+**Implementation**: `src/reconstruction_train.py` now writes split-specific JSONL datasets under each immutable training run directory. The first scaffold run, `phase5-contract-smoke-20260501a`, produced `3,240` examples from the locked pilot artifacts: `2,270` train, `507` validation, and `463` test examples. The run remains `scaffold_only` and writes placeholder adapter metadata rather than claiming real training.
+
+**Why this matters**: The prompt-only Nemotron evidence showed two separable problems: final-answer reliability and literary quality. Training the contract first attacks the cheaper, more measurable reliability problem and reduces the risk that a later style-transfer adapter is blamed for failures that are really output-format instability.

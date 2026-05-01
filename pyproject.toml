@@ -12,6 +12,7 @@ testpaths = ["tests"]
 [tool.coverage.run]
 branch = true
 include = [
+  "src/openai_response_utils.py",
   "src/parsing.py",
   "src/reconstruction_analysis.py",
   "src/project_config.py",
@@ -23,6 +24,7 @@ include = [
   "src/reconstruction_launcher.py",
   "src/reconstruction_metrics.py",
   "src/reconstruction_scheduler.py",
+  "src/reconstruction_spark_nemotron.py",
   "src/reconstruction_train.py",
   "scripts/md_to_html.py",
   "scripts/prepare_ghpages.py",
@@ -54,6 +56,7 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.12"
 files = [
+  "src/openai_response_utils.py",
   "src/parsing.py",
   "src/reconstruction_analysis.py",
   "src/project_config.py",
@@ -65,6 +68,7 @@ files = [
   "src/reconstruction_launcher.py",
   "src/reconstruction_metrics.py",
   "src/reconstruction_scheduler.py",
+  "src/reconstruction_spark_nemotron.py",
   "src/reconstruction_train.py",
   "scripts/md_to_html.py",
   "scripts/prepare_ghpages.py",

@@ -250,12 +250,17 @@ def test_model_config_is_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-smoke" / "training_config.json"
     )
     payload = json.loads(config_path.read_text(encoding="utf-8"))
+    metrics_path = (
+        tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-smoke" / "training_metrics.json"
+    )
+    metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
 
     assert exit_code == 0
     assert payload["model_id"] == "google/mt5-xl"
     assert payload["dataset_mode"] == "identity_smoke"
     assert payload["wandb_project"] is None
     assert payload["seed"] == reconstruction_train.DEFAULT_RECONSTRUCTION_SEED
+    assert metrics_payload["dataset_paths"]["train"].endswith("training_dataset/train.jsonl")
 
 
 def test_train_val_test_splits_match_manifest(tmp_path: Path) -> None:
@@ -280,6 +285,67 @@ def test_train_val_test_splits_match_manifest(tmp_path: Path) -> None:
 
     counts = reconstruction_train.count_examples_by_split(examples)
     assert counts == split_manifest.split_counts
+
+
+def test_contract_smoke_examples_encode_final_answer_contract(tmp_path: Path) -> None:
+    corpus_dir, corpus_output_dir, corpus_works, split_manifest_path, target_envelopes_path = (
+        _build_phase5_artifacts(tmp_path)
+    )
+    split_manifest = reconstruction_train.load_split_manifest(split_manifest_path)
+    target_envelopes = reconstruction_train.load_target_envelopes(target_envelopes_path)
+    windows = reconstruction_dataset.extract_windows(
+        corpus_dir=corpus_dir,
+        corpus_output_dir=corpus_output_dir,
+        corpus_works=corpus_works,
+        min_words=split_manifest.min_words,
+        max_words=split_manifest.max_words,
+    )
+
+    examples = reconstruction_train.build_training_examples(
+        windows,
+        split_manifest,
+        target_envelopes,
+        dataset_mode="contract_smoke",
+    )
+
+    assert examples[0].dataset_mode == "contract_smoke"
+    assert examples[0].target_text == examples[0].source_text
+    assert "sin razonamiento" in examples[0].instruction
+    assert "Devuelve solamente el pasaje final" in examples[0].instruction
+
+
+def test_training_dataset_jsonl_is_written_by_split(tmp_path: Path) -> None:
+    examples = [
+        reconstruction_train.TrainingExample(
+            window_id="w1",
+            split="train",
+            instruction="instr",
+            source_text="source",
+            target_text="target",
+            target_envelope_id="target:1",
+            dataset_mode="contract_smoke",
+        ),
+        reconstruction_train.TrainingExample(
+            window_id="w2",
+            split="val",
+            instruction="instr",
+            source_text="source",
+            target_text="target",
+            target_envelope_id="target:1",
+            dataset_mode="contract_smoke",
+        ),
+    ]
+
+    paths = reconstruction_train.write_training_dataset(examples, tmp_path / "dataset")
+
+    train_lines = (tmp_path / "dataset" / paths["train"]).read_text(encoding="utf-8").splitlines()
+    val_lines = (tmp_path / "dataset" / paths["val"]).read_text(encoding="utf-8").splitlines()
+    test_lines = (tmp_path / "dataset" / paths["test"]).read_text(encoding="utf-8").splitlines()
+
+    assert len(train_lines) == 1
+    assert len(val_lines) == 1
+    assert test_lines == []
+    assert json.loads(train_lines[0])["window_id"] == "w1"
 
 
 def test_checkpoint_metadata_is_complete(

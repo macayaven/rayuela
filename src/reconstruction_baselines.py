@@ -14,13 +14,17 @@ import argparse
 import importlib
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
 
-from openai_response_utils import extract_final_message_content
+from openai_response_utils import (
+    extract_final_message_content,
+    strip_visible_reasoning_prefix,
+)
 from project_config import CORPUS_DIR, CORPUS_OUTPUT_DIR
 from reconstruction_contract import (
     DEFAULT_RECONSTRUCTION_SEED,
@@ -132,6 +136,10 @@ class IterationRecord:
     score: Any
     score_history: dict[str, float | bool]
     accepted_as_best: bool
+    visible_meta_suffix_trimmed: bool = False
+    visible_meta_suffix_marker: str | None = None
+    rescue_used: bool = False
+    rescue_error_message: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -145,7 +153,20 @@ class IterationRecord:
             "score": self.score.to_dict(),
             "score_history": self.score_history,
             "accepted_as_best": self.accepted_as_best,
+            "visible_meta_suffix_trimmed": self.visible_meta_suffix_trimmed,
+            "visible_meta_suffix_marker": self.visible_meta_suffix_marker,
+            "rescue_used": self.rescue_used,
+            "rescue_error_message": self.rescue_error_message,
         }
+
+
+@dataclass(frozen=True)
+class ParsedGeneration:
+    """Normalized candidate text plus output-contract cleanup metadata."""
+
+    text: str
+    visible_meta_suffix_trimmed: bool = False
+    visible_meta_suffix_marker: str | None = None
 
 
 @dataclass(frozen=True)
@@ -179,6 +200,7 @@ class BaselineCaseResult:
     best_iteration_index: int
     stop_reason: str
     used_training_examples: bool
+    error_message: str | None = None
 
     @property
     def final_iteration(self) -> IterationRecord:
@@ -194,6 +216,24 @@ class BaselineCaseResult:
             "best_iteration_index": self.best_iteration_index,
             "stop_reason": self.stop_reason,
             "used_training_examples": self.used_training_examples,
+            "error_message": self.error_message,
+        }
+
+
+@dataclass(frozen=True)
+class BaselineCaseFailure:
+    """Failure record for a case that never produced a scoreable iteration."""
+
+    case: BaselineCase
+    prompt_template_id: str
+    error_message: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation."""
+        return {
+            "case": self.case.to_dict(),
+            "prompt_template_id": self.prompt_template_id,
+            "error_message": self.error_message,
         }
 
 
@@ -414,18 +454,24 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
     """Return the versioned Phase 4 prompt templates."""
     return {
         "style_shift": PromptTemplate(
-            template_id="style_shift_v1",
+            template_id="style_shift_v2",
             system_prompt=(
-                "You rewrite literary prose in Spanish. Preserve the scene, narrative facts, "
-                "and semantic content, but move the prose toward the requested stylistic "
-                "envelope. Do not explain your choices. Output only the rewritten passage."
+                "You rewrite literary prose in Spanish. Think silently and keep your reasoning "
+                "private. Preserve the scene, narrative facts, and semantic content, but move "
+                "the prose toward the requested stylistic envelope. The first visible character "
+                "of your answer must be the first character of the rewritten passage. Do not "
+                "output headings, labels, markdown, XML tags, quotes, or explanations. Output "
+                "only the rewritten passage. Keep any private reasoning short and reserve most "
+                "of the completion budget for the final passage."
             ),
             user_prompt=(
                 "Source passage:\n{source_text}\n\n"
                 "Target work: {target_title} by {target_author}\n"
                 "Target style cues:\n{style_summary}\n\n"
                 "Rewrite the source passage in Spanish so that it preserves content while "
-                "moving toward the target style envelope. Keep the output close in length."
+                "moving toward the target style envelope. Keep the output close in length. "
+                "Return exactly one rewritten passage and begin immediately with the passage "
+                "itself. Do not explain the transformation before or after the passage."
             ),
         ),
         "identity": PromptTemplate(
@@ -451,11 +497,14 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
             ),
         ),
         "revise": PromptTemplate(
-            template_id="revise_v1",
+            template_id="revise_v2",
             system_prompt=(
-                "You revise a prior rewrite in Spanish. Preserve semantic content, improve the "
-                "target style fit, and respect the requested length guardrails. Output only the "
-                "revised passage."
+                "You revise a prior rewrite in Spanish. Think silently and keep your reasoning "
+                "private. Preserve semantic content, improve the target style fit, and respect "
+                "the requested length guardrails. The first visible character of your answer "
+                "must be the first character of the revised passage. Output only the revised "
+                "passage. Keep any private reasoning short and reserve most of the completion "
+                "budget for the final passage."
             ),
             user_prompt=(
                 "Original source passage:\n{source_text}\n\n"
@@ -464,7 +513,9 @@ def default_prompt_templates() -> dict[str, PromptTemplate]:
                 "Target style cues:\n{style_summary}\n\n"
                 "Current score feedback:\n{feedback}\n\n"
                 "Revise the current rewrite to improve the weighted objective while preserving "
-                "the scene and staying close in length."
+                "the scene and staying close in length. Return exactly one revised passage and "
+                "begin immediately with the passage itself. Do not explain the revision before "
+                "or after the passage."
             ),
         ),
     }
@@ -513,7 +564,36 @@ def _style_summary(case: BaselineCase) -> str:
 
 def parse_generated_text(raw_response: str) -> str:
     """Normalize raw model output into the candidate text scored downstream."""
-    text = raw_response.strip()
+    return normalize_generated_text(raw_response).text
+
+
+_VISIBLE_META_SUFFIX_RE = re.compile(
+    r"(?ims)\n\s*\n(?P<marker>(?:\*\*)?\s*(?:"
+    r"nota|note|notes|explicaci[oó]n|explanation|"
+    r"comentario|commentary|justificaci[oó]n|justification|"
+    r"cambios realizados|changes made"
+    r")\s*:\s*(?:\*\*)?).*$"
+)
+
+
+def _strip_visible_meta_suffix(text: str) -> ParsedGeneration:
+    """Trim obvious post-passage commentary while preserving audit metadata."""
+    match = _VISIBLE_META_SUFFIX_RE.search(text)
+    if match is None:
+        return ParsedGeneration(text=text.strip())
+    trimmed = text[: match.start()].rstrip()
+    if not trimmed:
+        return ParsedGeneration(text=text.strip())
+    return ParsedGeneration(
+        text=trimmed,
+        visible_meta_suffix_trimmed=True,
+        visible_meta_suffix_marker=match.group("marker").strip(),
+    )
+
+
+def normalize_generated_text(raw_response: str) -> ParsedGeneration:
+    """Normalize raw model output and track obvious output-contract violations."""
+    text = strip_visible_reasoning_prefix(raw_response)
     lowered = text.lower()
     if lowered.startswith("<think>") and "</think>" in lowered:
         closing_index = lowered.rfind("</think>")
@@ -522,7 +602,7 @@ def parse_generated_text(raw_response: str) -> str:
         lines = text.splitlines()
         if len(lines) >= 3:
             text = "\n".join(lines[1:-1]).strip()
-    return text.strip()
+    return _strip_visible_meta_suffix(text.strip())
 
 
 def _feedback_from_score(score_history: dict[str, float | bool]) -> str:
@@ -576,6 +656,43 @@ def build_prompt_request(
         system_prompt=template.system_prompt,
         user_prompt=user_prompt,
         metadata=metadata,
+    )
+
+
+def build_rescue_prompt_request(
+    *,
+    failed_request: PromptRequest,
+    error_message: str,
+) -> PromptRequest:
+    """Build a strict final-answer-only rescue request after reasoning-only output."""
+    source_text = str(failed_request.metadata["source_text"])
+    target_author = str(failed_request.metadata["target_author"])
+    target_title = str(failed_request.metadata["target_title"])
+    return PromptRequest(
+        case_id=failed_request.case_id,
+        control_mode=failed_request.control_mode,
+        iteration_index=failed_request.iteration_index,
+        template_id=f"{failed_request.template_id}_rescue",
+        source_window_id=failed_request.source_window_id,
+        target_envelope_id=failed_request.target_envelope_id,
+        system_prompt=(
+            "You are in rescue mode. Do not reason visibly. Output only the final rewritten "
+            "Spanish passage. The first visible character must be the first character of the "
+            "passage. No headings, labels, notes, markdown, XML, quotes, analysis, or "
+            "explanation."
+        ),
+        user_prompt=(
+            "The previous generation failed because it returned hidden reasoning without final "
+            f"content: {error_message}\n\n"
+            f"Source passage:\n{source_text}\n\n"
+            f"Target work: {target_title} by {target_author}\n\n"
+            "Using the same task instructions below, write only the final rewritten passage. "
+            "Keep it close in length and preserve the scene and narrative facts.\n\n"
+            "Original task instructions:\n"
+            f"{failed_request.user_prompt}\n\n"
+            "Final passage only:"
+        ),
+        metadata={**failed_request.metadata, "rescue_for_template_id": failed_request.template_id},
     )
 
 
@@ -704,9 +821,40 @@ def run_prompt_case(
                 candidate_text=prior_candidate,
                 prior_score_history=prior_history,
             )
-            raw_response = prompt_backend.generate(request)
+            rescue_used = False
+            rescue_error_message = None
+            try:
+                raw_response = prompt_backend.generate(request)
+            except Exception as exc:
+                rescue_error_message = str(exc)
+                rescue_request = build_rescue_prompt_request(
+                    failed_request=request,
+                    error_message=rescue_error_message,
+                )
+                try:
+                    raw_response = prompt_backend.generate(rescue_request)
+                    request = rescue_request
+                    rescue_used = True
+                except Exception as rescue_exc:
+                    rescue_error_message = f"{rescue_error_message}; rescue failed: {rescue_exc}"
+                    if not iterations:
+                        raise RuntimeError(rescue_error_message) from rescue_exc
+                    stop_reason = "prompt_generation_failed"
+                    return BaselineCaseResult(
+                        case=case,
+                        prompt_template_id=initial_template.template_id,
+                        iterations=tuple(iterations),
+                        best_iteration_index=best_iteration_index,
+                        stop_reason=stop_reason,
+                        used_training_examples=case.uses_training_examples,
+                        error_message=rescue_error_message,
+                    )
+        if case.control_mode == "copy_source":
+            rescue_used = False
+            rescue_error_message = None
 
-        parsed_text = parse_generated_text(raw_response) or case.source_window.text
+        normalized_output = normalize_generated_text(raw_response)
+        parsed_text = normalized_output.text or case.source_window.text
         candidate = measurement_backend.measure(
             source_window=case.source_window,
             target_envelope=case.target_envelope,
@@ -743,6 +891,10 @@ def run_prompt_case(
                 score=score,
                 score_history=score_history,
                 accepted_as_best=accepted_as_best,
+                visible_meta_suffix_trimmed=normalized_output.visible_meta_suffix_trimmed,
+                visible_meta_suffix_marker=normalized_output.visible_meta_suffix_marker,
+                rescue_used=rescue_used,
+                rescue_error_message=rescue_error_message if rescue_used else None,
             )
         )
 
@@ -760,22 +912,36 @@ def run_prompt_case(
     )
 
 
-def _summary_by_control(results: list[BaselineCaseResult]) -> dict[str, dict[str, Any]]:
+def _summary_by_control(
+    results: list[BaselineCaseResult],
+    case_failures: list[BaselineCaseFailure] | None = None,
+) -> dict[str, dict[str, Any]]:
     """Summarize case results by control mode."""
     grouped: dict[str, list[BaselineCaseResult]] = {}
     for result in results:
         grouped.setdefault(result.case.control_mode, []).append(result)
+    failure_counts: dict[str, int] = {}
+    for failure in case_failures or []:
+        failure_counts[failure.case.control_mode] = (
+            failure_counts.get(failure.case.control_mode, 0) + 1
+        )
 
     summary: dict[str, dict[str, Any]] = {}
-    for control_mode, items in grouped.items():
+    for control_mode in sorted(set(grouped) | set(failure_counts)):
+        items = grouped.get(control_mode, [])
         objectives = [
             float(item.final_iteration.score_history["weighted_objective"])
             for item in items
         ]
+        meta_trim_count = sum(
+            1 for item in items if item.final_iteration.visible_meta_suffix_trimmed
+        )
         summary[control_mode] = {
             "count": len(items),
-            "mean_weighted_objective": float(np.mean(objectives)),
-            "median_weighted_objective": float(np.median(objectives)),
+            "failed_case_count": failure_counts.get(control_mode, 0),
+            "mean_weighted_objective": float(np.mean(objectives)) if objectives else 0.0,
+            "median_weighted_objective": float(np.median(objectives)) if objectives else 0.0,
+            "meta_suffix_trimmed_case_count": meta_trim_count,
             "stop_reasons": sorted({item.stop_reason for item in items}),
         }
     return summary
@@ -784,6 +950,7 @@ def _summary_by_control(results: list[BaselineCaseResult]) -> dict[str, dict[str
 def write_baseline_artifacts(
     *,
     results: list[BaselineCaseResult],
+    case_failures: list[BaselineCaseFailure] | None = None,
     cases_path: Path,
     summary_path: Path,
     report_path: Path,
@@ -793,20 +960,24 @@ def write_baseline_artifacts(
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
+    failures = case_failures or []
     cases_payload = {
         "generated_at": utc_now(),
         "results": [result.to_dict() for result in results],
+        "case_failures": [failure.to_dict() for failure in failures],
     }
     summary_payload: dict[str, Any] = {
         "generated_at": utc_now(),
         "total_cases": len(results),
-        "controls": _summary_by_control(results),
+        "failed_cases": len(failures),
+        "controls": _summary_by_control(results, failures),
     }
     report_lines = [
         "# Phase 4 Prompt Baseline Report",
         "",
         f"Generated at: {summary_payload['generated_at']}",
         f"Total cases: {summary_payload['total_cases']}",
+        f"Failed cases: {summary_payload['failed_cases']}",
         "",
         "## Control Summary",
         "",
@@ -816,8 +987,16 @@ def write_baseline_artifacts(
             f"- `{control_mode}`: count={stats['count']}, "
             f"mean weighted objective={stats['mean_weighted_objective']:.4f}, "
             f"median weighted objective={stats['median_weighted_objective']:.4f}, "
+            f"failed cases={stats['failed_case_count']}, "
+            f"meta suffix trimmed cases={stats['meta_suffix_trimmed_case_count']}, "
             f"stop reasons={', '.join(stats['stop_reasons'])}"
         )
+    if failures:
+        report_lines.extend(["", "## Case Failures", ""])
+        for failure in failures:
+            report_lines.append(
+                f"- `{failure.case.case_id}`: {failure.error_message}"
+            )
 
     cases_path.write_text(
         json.dumps(cases_payload, ensure_ascii=False, indent=2) + "\n",
@@ -907,6 +1086,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-base", default=VLLM_API_BASE)
     parser.add_argument("--model", default=DEFAULT_MODEL_NAME)
     parser.add_argument(
+        "--generation-temperature",
+        type=float,
+        default=0.3,
+        help="Sampling temperature for prompt-generation calls.",
+    )
+    parser.add_argument(
         "--generation-max-tokens",
         type=int,
         default=768,
@@ -951,6 +1136,7 @@ def main(argv: list[str] | None = None) -> int:
         "dry_run": args.dry_run,
         "api_base": args.api_base,
         "model": args.model,
+        "generation_temperature": args.generation_temperature,
         "generation_max_tokens": args.generation_max_tokens,
         "semantic_generation_max_tokens": args.semantic_generation_max_tokens,
         "reasoning_parser": args.reasoning_parser,
@@ -963,7 +1149,7 @@ def main(argv: list[str] | None = None) -> int:
         git_sha=detect_git_sha(paths.project_root),
         config_payload=config_payload,
         corpus_manifest="outputs/corpus/corpus_metadata.json",
-        prompt_template_id="style_shift_v1",
+        prompt_template_id=default_prompt_templates()["style_shift"].template_id,
         split_manifest=args.split_manifest_path,
         paths=paths,
     )
@@ -991,6 +1177,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_backend = OpenAIPromptBackend(
                 api_base=args.api_base,
                 model=args.model,
+                temperature=args.generation_temperature,
                 max_tokens=args.generation_max_tokens,
                 seed=args.seed,
             )
@@ -1000,24 +1187,36 @@ def main(argv: list[str] | None = None) -> int:
                 semantic_max_tokens=args.semantic_generation_max_tokens,
             )
 
-        results = [
-            run_prompt_case(
-                case=case,
-                prompt_backend=prompt_backend,
-                measurement_backend=measurement_backend,
-                stylometric_baseline=baselines.stylometric,
-                semantic_baseline=baselines.semantic,
-                success_criteria=success_criteria,
-                max_iterations=args.max_iterations,
-            )
-            for case in cases
-        ]
-
+        results: list[BaselineCaseResult] = []
+        case_failures: list[BaselineCaseFailure] = []
+        initial_template_id = default_prompt_templates()["style_shift"].template_id
+        for case in cases:
+            try:
+                results.append(
+                    run_prompt_case(
+                        case=case,
+                        prompt_backend=prompt_backend,
+                        measurement_backend=measurement_backend,
+                        stylometric_baseline=baselines.stylometric,
+                        semantic_baseline=baselines.semantic,
+                        success_criteria=success_criteria,
+                        max_iterations=args.max_iterations,
+                    )
+                )
+            except Exception as exc:
+                case_failures.append(
+                    BaselineCaseFailure(
+                        case=case,
+                        prompt_template_id=initial_template_id,
+                        error_message=str(exc),
+                    )
+                )
         cases_path = run_dir / "prompt_baseline_cases.json"
         summary_path = run_dir / "prompt_baseline_summary.json"
         report_path = run_dir / "prompt_baseline_report.md"
         write_baseline_artifacts(
             results=results,
+            case_failures=case_failures,
             cases_path=cases_path,
             summary_path=summary_path,
             report_path=report_path,

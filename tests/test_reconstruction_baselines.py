@@ -94,6 +94,19 @@ class StubPromptBackend:
         return self._responses[len(self.requests) - 1]
 
 
+class FailingPromptBackend:
+    def __init__(self, responses: list[str], *, fail_at: int) -> None:
+        self._responses = responses
+        self._fail_at = fail_at
+        self.requests: list[reconstruction_baselines.PromptRequest] = []
+
+    def generate(self, request: reconstruction_baselines.PromptRequest) -> str:
+        self.requests.append(request)
+        if len(self.requests) - 1 == self._fail_at:
+            raise RuntimeError("model returned reasoning without final content")
+        return self._responses[len(self.requests) - 1]
+
+
 class StubMeasurementBackend:
     def __init__(
         self,
@@ -144,10 +157,10 @@ def test_prompt_generation_returns_traceable_output() -> None:
         max_iterations=1,
     )
 
-    assert result.prompt_template_id == "style_shift_v1"
+    assert result.prompt_template_id == "style_shift_v2"
     assert result.used_training_examples is False
     assert len(result.iterations) == 1
-    assert result.iterations[0].template_id == "style_shift_v1"
+    assert result.iterations[0].template_id == "style_shift_v2"
     assert result.iterations[0].raw_response == "respuesta candidata"
     assert result.iterations[0].parsed_text == "respuesta candidata"
     assert result.iterations[0].score_history["weighted_objective"] > 0.0
@@ -187,11 +200,11 @@ def test_load_target_envelopes_restores_tuple_provenance(tmp_path: Path) -> None
 def test_iteration_history_is_saved(tmp_path: Path) -> None:
     result = reconstruction_baselines.BaselineCaseResult(
         case=_baseline_case(),
-        prompt_template_id="style_shift_v1",
+        prompt_template_id="style_shift_v2",
         iterations=(
             reconstruction_baselines.IterationRecord(
                 iteration_index=0,
-                template_id="style_shift_v1",
+                template_id="style_shift_v2",
                 system_prompt="system",
                 user_prompt="user",
                 raw_response="raw one",
@@ -215,7 +228,7 @@ def test_iteration_history_is_saved(tmp_path: Path) -> None:
             ),
             reconstruction_baselines.IterationRecord(
                 iteration_index=1,
-                template_id="revise_v1",
+                template_id="revise_v2",
                 system_prompt="system",
                 user_prompt="revise",
                 raw_response="raw two",
@@ -264,6 +277,95 @@ def test_iteration_history_is_saved(tmp_path: Path) -> None:
     assert "weighted objective" in report_path.read_text(encoding="utf-8").lower()
 
 
+def test_case_failures_are_saved_separately_from_scoreable_results(tmp_path: Path) -> None:
+    result = reconstruction_baselines.BaselineCaseResult(
+        case=_baseline_case(),
+        prompt_template_id="style_shift_v2",
+        iterations=(
+            reconstruction_baselines.IterationRecord(
+                iteration_index=0,
+                template_id="style_shift_v2",
+                system_prompt="system",
+                user_prompt="user",
+                raw_response="raw one",
+                parsed_text="text one",
+                score=reconstruction_metrics.ReconstructionScore(
+                    semantic_source_distance=0.1,
+                    stylistic_source_distance=0.2,
+                    stylistic_target_distance=0.3,
+                    stylistic_target_improvement=0.4,
+                    stylistic_target_improvement_ratio=0.5,
+                    within_semantic_tolerance=True,
+                    within_stylistic_tolerance=True,
+                    within_target_tolerance=True,
+                    lexical_controls=reconstruction_metrics.compute_lexical_controls(
+                        "uno dos tres cuatro",
+                        "uno dos tres cinco",
+                    ),
+                ),
+                score_history={"weighted_objective": 0.42},
+                accepted_as_best=True,
+            ),
+        ),
+        best_iteration_index=0,
+        stop_reason="max_iterations_reached",
+        used_training_examples=False,
+    )
+    failure = reconstruction_baselines.BaselineCaseFailure(
+        case=_baseline_case(),
+        prompt_template_id="style_shift_v2",
+        error_message="model returned reasoning without final content",
+    )
+    cases_path = tmp_path / "cases.json"
+    summary_path = tmp_path / "summary.json"
+    report_path = tmp_path / "report.md"
+
+    reconstruction_baselines.write_baseline_artifacts(
+        results=[result],
+        case_failures=[failure],
+        cases_path=cases_path,
+        summary_path=summary_path,
+        report_path=report_path,
+    )
+
+    cases_payload = json.loads(cases_path.read_text(encoding="utf-8"))
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    assert len(cases_payload["results"]) == 1
+    assert len(cases_payload["case_failures"]) == 1
+    assert summary_payload["total_cases"] == 1
+    assert summary_payload["failed_cases"] == 1
+    assert summary_payload["controls"]["style_shift"]["failed_case_count"] == 1
+    assert "Case Failures" in report_path.read_text(encoding="utf-8")
+
+
+def test_all_failed_cases_still_publish_zero_metric_summary(tmp_path: Path) -> None:
+    failure = reconstruction_baselines.BaselineCaseFailure(
+        case=_baseline_case(),
+        prompt_template_id="style_shift_v2",
+        error_message="model returned reasoning without final content",
+    )
+    cases_path = tmp_path / "cases.json"
+    summary_path = tmp_path / "summary.json"
+    report_path = tmp_path / "report.md"
+
+    reconstruction_baselines.write_baseline_artifacts(
+        results=[],
+        case_failures=[failure],
+        cases_path=cases_path,
+        summary_path=summary_path,
+        report_path=report_path,
+    )
+
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+
+    assert summary_payload["total_cases"] == 0
+    assert summary_payload["failed_cases"] == 1
+    assert summary_payload["controls"]["style_shift"]["count"] == 0
+    assert summary_payload["controls"]["style_shift"]["failed_case_count"] == 1
+    assert summary_payload["controls"]["style_shift"]["mean_weighted_objective"] == 0.0
+
+
 def test_revision_loop_improves_weighted_objective_or_stops_cleanly() -> None:
     stylometric_baseline = _manual_baseline(
         "stylometric",
@@ -305,6 +407,86 @@ def test_revision_loop_improves_weighted_objective_or_stops_cleanly() -> None:
     assert objectives[1] > objectives[0]
     assert result.best_iteration_index == 1
     assert result.stop_reason == "max_iterations_reached"
+
+
+def test_revision_generation_failure_keeps_best_previous_iteration() -> None:
+    stylometric_baseline = _manual_baseline(
+        "stylometric",
+        ["sent_len_mean", "mattr"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    semantic_baseline = _manual_baseline(
+        "semantic",
+        ["existential_questioning", "metafiction"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    prompt_backend = FailingPromptBackend(["primer intento"], fail_at=1)
+    measurement_backend = StubMeasurementBackend(
+        {
+            "primer intento": reconstruction_baselines.CandidateMeasurements(
+                stylometric=np.array([1.4, 1.4]),
+                semantic=np.array([1.1, 1.1]),
+            )
+        }
+    )
+
+    result = reconstruction_baselines.run_prompt_case(
+        case=_baseline_case(),
+        prompt_backend=prompt_backend,
+        measurement_backend=measurement_backend,
+        stylometric_baseline=stylometric_baseline,
+        semantic_baseline=semantic_baseline,
+        success_criteria=_success_criteria(),
+        max_iterations=2,
+    )
+
+    assert len(result.iterations) == 1
+    assert result.best_iteration_index == 0
+    assert result.stop_reason == "prompt_generation_failed"
+    assert result.error_message is not None
+    assert result.error_message.startswith("model returned reasoning without final content")
+    assert "rescue failed" in result.error_message
+
+
+def test_first_iteration_generation_failure_can_be_rescued() -> None:
+    stylometric_baseline = _manual_baseline(
+        "stylometric",
+        ["sent_len_mean", "mattr"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    semantic_baseline = _manual_baseline(
+        "semantic",
+        ["existential_questioning", "metafiction"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    prompt_backend = FailingPromptBackend(["unused", "rescate final"], fail_at=0)
+    measurement_backend = StubMeasurementBackend(
+        {
+            "rescate final": reconstruction_baselines.CandidateMeasurements(
+                stylometric=np.array([2.5, 2.5]),
+                semantic=np.array([1.2, 1.2]),
+            )
+        }
+    )
+
+    result = reconstruction_baselines.run_prompt_case(
+        case=_baseline_case(),
+        prompt_backend=prompt_backend,
+        measurement_backend=measurement_backend,
+        stylometric_baseline=stylometric_baseline,
+        semantic_baseline=semantic_baseline,
+        success_criteria=_success_criteria(),
+        max_iterations=1,
+    )
+
+    iteration = result.iterations[0]
+
+    assert len(prompt_backend.requests) == 2
+    assert iteration.template_id == "style_shift_v2_rescue"
+    assert iteration.parsed_text == "rescate final"
+    assert iteration.rescue_used is True
+    assert iteration.rescue_error_message == "model returned reasoning without final content"
+    assert "Final passage only" in iteration.user_prompt
 
 
 def test_prompt_baseline_respects_length_guardrails() -> None:
@@ -424,7 +606,7 @@ def test_openai_prompt_backend_passes_seed_to_chat_completion(
             case_id="case-1",
             control_mode="style_shift",
             iteration_index=0,
-            template_id="style_shift_v1",
+            template_id="style_shift_v2",
             source_window_id="source:1",
             target_envelope_id="target:1",
             system_prompt="system",
@@ -496,7 +678,7 @@ def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
             case_id="case-1",
             control_mode="style_shift",
             iteration_index=0,
-            template_id="style_shift_v1",
+            template_id="style_shift_v2",
             source_window_id="source:1",
             target_envelope_id="target:1",
             system_prompt="system",
@@ -506,6 +688,68 @@ def test_openai_prompt_backend_prefers_final_content_over_reasoning_channel(
     )
 
     assert content == "respuesta final"
+
+
+def test_openai_prompt_backend_strips_visible_reasoning_prefix_in_final_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Completions:
+        @staticmethod
+        def create(**kwargs: object) -> object:
+            del kwargs
+            return type(
+                "_Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "_Choice",
+                            (),
+                            {
+                                "message": type(
+                                    "_Message",
+                                    (),
+                                    {
+                                        "content": (
+                                            "Thinking Process:\n"
+                                            "Primero analizo la tarea y la salida esperada.\n\n"
+                                            "Texto final."
+                                        ),
+                                        "reasoning_content": "razonamiento oculto",
+                                    },
+                                )()
+                            },
+                        )()
+                    ]
+                },
+            )()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Client:
+        def __init__(self, *, base_url: str, api_key: str) -> None:
+            del base_url, api_key
+            self.chat = _Chat()
+
+    monkeypatch.setattr(reconstruction_baselines, "_load_openai_client", lambda: _Client)
+    backend = reconstruction_baselines.OpenAIPromptBackend(max_tokens=256)
+
+    content = backend.generate(
+        reconstruction_baselines.PromptRequest(
+            case_id="case-1",
+            control_mode="style_shift",
+            iteration_index=0,
+            template_id="style_shift_v2",
+            source_window_id="source:1",
+            target_envelope_id="target:1",
+            system_prompt="system",
+            user_prompt="user",
+            metadata={},
+        )
+    )
+
+    assert content == "Texto final."
 
 
 def test_openai_prompt_backend_fails_when_reasoning_exists_without_final_content(
@@ -555,7 +799,7 @@ def test_openai_prompt_backend_fails_when_reasoning_exists_without_final_content
                 case_id="case-1",
                 control_mode="style_shift",
                 iteration_index=0,
-                template_id="style_shift_v1",
+                template_id="style_shift_v2",
                 source_window_id="source:1",
                 target_envelope_id="target:1",
                 system_prompt="system",
@@ -576,6 +820,19 @@ def test_build_argument_parser_exposes_generation_max_tokens() -> None:
     )
 
     assert args.generation_max_tokens == 2048
+
+
+def test_build_argument_parser_exposes_generation_temperature() -> None:
+    args = reconstruction_baselines.build_argument_parser().parse_args(
+        [
+            "--run-id",
+            "phase4-test",
+            "--generation-temperature",
+            "0.0",
+        ]
+    )
+
+    assert args.generation_temperature == 0.0
 
 
 def test_build_argument_parser_exposes_semantic_generation_max_tokens() -> None:
@@ -681,3 +938,75 @@ def test_parse_generated_text_strips_leading_think_block() -> None:
     )
 
     assert parsed == "Texto final."
+
+
+def test_parse_generated_text_strips_visible_reasoning_prefix() -> None:
+    parsed = reconstruction_baselines.parse_generated_text(
+        "Thinking Process:\nPienso en las siguientes operaciones.\n\nTexto final que quiero."
+    )
+
+    assert parsed == "Texto final que quiero."
+
+
+def test_parse_generated_text_strips_obvious_meta_suffix() -> None:
+    parsed = reconstruction_baselines.parse_generated_text(
+        "Texto final.\n\n**Nota:** Ajuste el pasaje para sonar mas bolanesco."
+    )
+
+    assert parsed == "Texto final."
+
+
+def test_prompt_case_records_visible_meta_suffix_trimming() -> None:
+    stylometric_baseline = _manual_baseline(
+        "stylometric",
+        ["sent_len_mean", "mattr"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    semantic_baseline = _manual_baseline(
+        "semantic",
+        ["existential_questioning", "metafiction"],
+        np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]]),
+    )
+    prompt_backend = StubPromptBackend(
+        [
+            "Texto final.\n\n**Nota:** Ajuste el pasaje para sonar mas bolanesco.",
+        ]
+    )
+    measurement_backend = StubMeasurementBackend(
+        {
+            "Texto final.": reconstruction_baselines.CandidateMeasurements(
+                stylometric=np.array([2.5, 2.5]),
+                semantic=np.array([1.2, 1.2]),
+            )
+        }
+    )
+
+    result = reconstruction_baselines.run_prompt_case(
+        case=_baseline_case(),
+        prompt_backend=prompt_backend,
+        measurement_backend=measurement_backend,
+        stylometric_baseline=stylometric_baseline,
+        semantic_baseline=semantic_baseline,
+        success_criteria=_success_criteria(),
+        max_iterations=1,
+    )
+
+    iteration = result.iterations[0]
+
+    assert iteration.parsed_text == "Texto final."
+    assert iteration.visible_meta_suffix_trimmed is True
+    assert iteration.visible_meta_suffix_marker == "**Nota:**"
+
+
+def test_default_prompt_templates_tighten_visible_output_contract() -> None:
+    templates = reconstruction_baselines.default_prompt_templates()
+
+    style_shift = templates["style_shift"]
+    revise = templates["revise"]
+
+    assert style_shift.template_id == "style_shift_v2"
+    assert revise.template_id == "revise_v2"
+    assert "Think silently" in style_shift.system_prompt
+    assert "first visible character" in style_shift.system_prompt
+    assert "Return exactly one rewritten passage" in style_shift.user_prompt
+    assert "Think silently" in revise.system_prompt

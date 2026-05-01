@@ -83,6 +83,19 @@ docker compose --profile llm-nemotron up vllm-nemotron
 - `vllm-nemotron` serves the Nemotron replication model on port `8000` and should not run at the same time as `vllm`.
 - The tracked Qwen vLLM command includes `--reasoning-parser qwen3`, which keeps Qwen reasoning enabled while separating `reasoning_content` from final `content`.
 
+For the official DGX Spark Nemotron reasoning lane, use the helper in
+[`src/reconstruction_spark_nemotron.py`](src/reconstruction_spark_nemotron.py)
+instead of Docker Compose. That path follows NVIDIA's published Spark playbook
+for Nemotron 3 Nano via `llama.cpp`, which is currently the cleanest official
+reasoning-control surface for this workstation.
+
+```bash
+.venv/bin/python src/reconstruction_spark_nemotron.py print-commands
+```
+
+The helper prints the exact build, model-download, server, and launchcheck-plan
+commands so the Spark-specific path stays explicit and reproducible.
+
 ## Common Commands
 
 ```bash
@@ -270,6 +283,17 @@ The same parser edge applies to the semantic evaluator. Phase 4 now also exposes
 `--semantic-generation-max-tokens`, forwards that budget into the structured semantic-extraction
 calls, and fails fast if the evaluator receives hidden reasoning without the final JSON payload.
 
+The default rewrite templates are now `style_shift_v2` / `revise_v2`. They keep hidden reasoning
+enabled but tighten the visible-output contract by explicitly requiring the first visible character
+to belong to the passage itself, with no headings, labels, markdown, or explanatory text.
+
+For the official DGX Spark Nemotron lane, use
+[`src/reconstruction_spark_nemotron.py`](src/reconstruction_spark_nemotron.py)
+to prepare a bounded `llama.cpp` launchcheck against the OpenAI-compatible API
+that NVIDIA documents for Nemotron 3 Nano. This keeps the reasoning-control
+surface aligned with Spark guidance instead of relying on ad hoc visible-marker
+scraping.
+
 Primary outputs:
 
 - `outputs/reconstruction/runs/<run_id>/prompt_baseline_cases.json`
@@ -288,9 +312,9 @@ training envelope before real adapter fine-tuning.
 
 The modules provide:
 
-- deterministic `identity_smoke` dataset assembly from the locked pilot split
+- deterministic `identity_smoke` and `contract_smoke` dataset assembly from the locked pilot split
 - immutable run directories with training config, tokenizer config, metrics, and
-  checkpoint metadata
+  split-specific JSONL training datasets, and checkpoint metadata
 - placeholder-adapter handling that is explicit in metadata and rejected by
   inference when a real adapter is not present yet
 
@@ -299,12 +323,14 @@ Targeted Phase 5 verification:
 ```bash
 python3 -m pytest tests/test_reconstruction_training.py -q
 python3 src/reconstruction_train.py --run-id phase5-smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
+python3 src/reconstruction_train.py --run-id phase5-contract-smoke --dataset-mode contract_smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
 ```
 
 Primary outputs:
 
 - `outputs/reconstruction/runs/<run_id>/training_config.json`
 - `outputs/reconstruction/runs/<run_id>/training_metrics.json`
+- `outputs/reconstruction/runs/<run_id>/training_dataset/{train,val,test}.jsonl`
 - `outputs/reconstruction/runs/<run_id>/checkpoint_metadata.json`
 
 ## Reconstruction Analysis
@@ -409,6 +435,12 @@ OpenAI-compatible backend request surface. That does not make every upstream
 serving stack perfectly reproducible, but it closes the avoidable gap where the
 manifest claimed a seed while the generation call ignored it.
 
+Phase 4 also now trims obvious post-passage meta commentary such as `Nota:`,
+`Note:`, `Explicación:`, or `Changes made:` suffixes before scoring the
+candidate rewrite. That keeps the weighted objective focused on the rewritten
+passage itself while preserving audit metadata in the saved iteration record and
+reporting the trimmed-case count in the Phase 4 summary/report.
+
 For detached execution, use [`src/reconstruction_launcher.py`](src/reconstruction_launcher.py)
 or the thin shell shims in [`scripts/launch_reconstruction_schedule.sh`](scripts/launch_reconstruction_schedule.sh),
 [`scripts/status_reconstruction_schedule.sh`](scripts/status_reconstruction_schedule.sh),
@@ -453,6 +485,28 @@ A ready-to-edit example lives at
 Treat scheduler plan files as trusted executable specifications: the scheduler
 passes the declared command directly to `subprocess.run()` and does not sandbox
 or validate contributor-authored plans.
+
+For an unattended Qwen hidden-reasoning batch bounded to roughly 10 hours, use
+[`plans/reconstruction_guided_schedule.autonomous-10h-20260430.json`](plans/reconstruction_guided_schedule.autonomous-10h-20260430.json).
+It runs seeded 1-, 2-, and 3-iteration comparisons over the same first four
+pilot cases, then spends the remaining budget on a 6-case 2-iteration
+confirmation run. Launch it only when the Qwen parser-enabled endpoint is
+already serving at `http://localhost:8000/v1`:
+
+```bash
+scripts/launch_reconstruction_schedule.sh \
+  --plan-path plans/reconstruction_guided_schedule.autonomous-10h-20260430.json \
+  --wandb-project rayuela \
+  --wandb-mode offline
+
+scripts/status_reconstruction_schedule.sh \
+  --schedule-id guided-phase4-autonomous-10h-20260430a
+```
+
+The launcher automatically runs Phase 6 analysis with
+`--schedule-run-selection nonfailed` after the scheduler finishes, so the
+article-facing output should be read from the schedule analysis directory rather
+than reconstructed manually from individual run folders.
 
 ## Corpus Extension
 

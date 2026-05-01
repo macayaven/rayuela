@@ -59,11 +59,11 @@ def _make_result(
             },
             "uses_training_examples": False,
         },
-        "prompt_template_id": "style_shift_v1",
+        "prompt_template_id": "style_shift_v2",
         "iterations": [
             {
                 "iteration_index": 0,
-                "template_id": "style_shift_v1",
+                "template_id": "style_shift_v2",
                 "system_prompt": "system",
                 "user_prompt": "user",
                 "raw_response": raw_response,
@@ -109,7 +109,7 @@ def _write_run(run_dir: Path, *, run_id: str, results: list[dict[str, Any]]) -> 
         "status": "completed",
         "git_sha": "cf10ac5c86256aceb8b82e8f78483f7797c15d24",
         "model_id": "Qwen/Qwen3.5-27B-FP8",
-        "prompt_template_id": "style_shift_v1",
+        "prompt_template_id": "style_shift_v2",
         "corpus_manifest": "outputs/corpus/corpus_metadata.json",
         "split_manifest": "outputs/reconstruction/pilots/split_manifest.json",
         "config_payload": {

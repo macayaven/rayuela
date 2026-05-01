@@ -35,6 +35,7 @@ from reconstruction_metrics import ToleranceConfig
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_ID = "google/mt5-xl"
 DEFAULT_DATASET_MODE = "identity_smoke"
+CONTRACT_DATASET_MODE = "contract_smoke"
 
 
 def _load_pilot_json(path: Path) -> Any:
@@ -48,10 +49,15 @@ class TrainingExample:
 
     window_id: str
     split: str
+    instruction: str
     source_text: str
     target_text: str
     target_envelope_id: str
     dataset_mode: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation."""
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -200,10 +206,10 @@ def build_training_examples(
     dataset_mode: str = DEFAULT_DATASET_MODE,
 ) -> list[TrainingExample]:
     """Build deterministic training examples aligned to the split manifest."""
-    if dataset_mode != DEFAULT_DATASET_MODE:
+    if dataset_mode not in {DEFAULT_DATASET_MODE, CONTRACT_DATASET_MODE}:
         raise ValueError(
             f"Unsupported dataset_mode {dataset_mode!r}; "
-            f"only {DEFAULT_DATASET_MODE!r} is currently implemented."
+            f"supported modes: {DEFAULT_DATASET_MODE!r}, {CONTRACT_DATASET_MODE!r}."
         )
 
     assignment_lookup = split_manifest.assignment_lookup()
@@ -228,10 +234,23 @@ def build_training_examples(
         split = assignment_lookup[window.window_id]
         source_text = window.text
         target_text = window.text
+        if dataset_mode == CONTRACT_DATASET_MODE:
+            instruction = (
+                "Reescribe el pasaje en español conservando estrictamente los hechos, "
+                "la escena, los personajes, el orden narrativo y una longitud cercana. "
+                "Devuelve solamente el pasaje final, sin razonamiento, notas, encabezados, "
+                "markdown ni explicación."
+            )
+        else:
+            instruction = (
+                "Devuelve el pasaje en español con cambios mínimos. Conserva el contenido, "
+                "la longitud y el estilo. Devuelve solamente el pasaje final."
+            )
         examples.append(
             TrainingExample(
                 window_id=window.window_id,
                 split=split,
+                instruction=instruction,
                 source_text=source_text,
                 target_text=target_text,
                 target_envelope_id=default_envelope_id,
@@ -247,6 +266,22 @@ def count_examples_by_split(examples: list[TrainingExample]) -> dict[str, int]:
     for example in examples:
         counts[example.split] = counts.get(example.split, 0) + 1
     return counts
+
+
+def write_training_dataset(examples: list[TrainingExample], dataset_dir: Path) -> dict[str, str]:
+    """Write split-specific JSONL training examples and return relative filenames."""
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, str] = {}
+    for split in ("train", "val", "test"):
+        split_path = dataset_dir / f"{split}.jsonl"
+        with split_path.open("w", encoding="utf-8") as handle:
+            for example in examples:
+                if example.split != split:
+                    continue
+                line = json.dumps(example.to_dict(), ensure_ascii=False, sort_keys=True)
+                handle.write(line + "\n")
+        paths[split] = split_path.name
+    return paths
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -320,6 +355,7 @@ def main(argv: list[str] | None = None) -> int:
     metrics_path = run_dir / "training_metrics.json"
     checkpoint_path = run_dir / "checkpoint_metadata.json"
     adapter_dir = run_dir / "adapter"
+    dataset_dir = run_dir / "training_dataset"
     try:
         run_manifest = build_run_manifest(
             run_id=args.run_id,
@@ -367,6 +403,7 @@ def main(argv: list[str] | None = None) -> int:
             dataset_mode=args.dataset_mode,
         )
         split_counts = count_examples_by_split(examples)
+        dataset_paths = write_training_dataset(examples, dataset_dir)
         adapter_path = _write_placeholder_adapter(adapter_dir)
 
         _write_json(config_path, training_config.to_dict())
@@ -378,6 +415,10 @@ def main(argv: list[str] | None = None) -> int:
                 "status": "scaffold_only",
                 "dataset_mode": args.dataset_mode,
                 "split_counts": split_counts,
+                "dataset_paths": {
+                    split: to_project_relative(dataset_dir / filename, paths.project_root)
+                    for split, filename in dataset_paths.items()
+                },
                 "tolerance_config": ToleranceConfig().to_dict(),
             },
         )
