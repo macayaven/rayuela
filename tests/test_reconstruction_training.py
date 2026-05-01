@@ -367,6 +367,24 @@ def test_seq2seq_input_format_includes_instruction_and_source() -> None:
     assert formatted == "Devuelve solamente el pasaje final.\n\nPasaje:\nTexto fuente."
 
 
+def test_sft_text_format_includes_response_and_eos() -> None:
+    example = reconstruction_train.TrainingExample(
+        window_id="w1",
+        split="train",
+        instruction="Devuelve solamente el pasaje final.",
+        source_text="Texto fuente.",
+        target_text="Texto destino.",
+        target_envelope_id="target:1",
+        dataset_mode="contract_smoke",
+    )
+
+    formatted = reconstruction_train.format_sft_text(example, "</s>")
+
+    assert "### Instrucción:\nDevuelve solamente el pasaje final." in formatted
+    assert "### Pasaje:\nTexto fuente." in formatted
+    assert formatted.endswith("### Respuesta:\nTexto destino.</s>")
+
+
 def test_select_training_examples_is_split_bounded() -> None:
     examples = [
         reconstruction_train.TrainingExample(
@@ -489,6 +507,64 @@ def test_seq2seq_smoke_mode_writes_non_placeholder_artifact_metadata(
     assert metrics["training_metrics"]["train_loss"] == 0.25
 
 
+def test_lora_sft_mode_writes_adapter_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    corpus_dir, corpus_output_dir, _, split_manifest_path, target_envelopes_path = (
+        _build_phase5_artifacts(tmp_path)
+    )
+    monkeypatch.setattr(reconstruction_train, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(reconstruction_train, "detect_git_sha", lambda project_root: "feedface")
+
+    def _fake_train(
+        *,
+        examples: list[reconstruction_train.TrainingExample],
+        config: reconstruction_train.TrainingConfig,
+        adapter_output_dir: Path,
+    ) -> dict[str, float | int | str]:
+        assert examples
+        assert config.training_mode == "lora_sft"
+        assert config.lora_rank == 4
+        adapter_output_dir.mkdir(parents=True)
+        (adapter_output_dir / "adapter_model.safetensors").write_bytes(b"adapter")
+        return {"train_loss": 0.5, "artifact_type": "lora_sft_adapter"}
+
+    monkeypatch.setattr(reconstruction_train, "run_lora_sft_training", _fake_train)
+
+    reconstruction_train.main(
+        [
+            "--run-id",
+            "phase5-lora-smoke",
+            "--training-mode",
+            "lora_sft",
+            "--dataset-mode",
+            "contract_smoke",
+            "--lora-rank",
+            "4",
+            "--corpus-dir",
+            str(corpus_dir),
+            "--corpus-output-dir",
+            str(corpus_output_dir),
+            "--split-manifest-path",
+            str(split_manifest_path),
+            "--target-envelopes-path",
+            str(target_envelopes_path),
+            "--allow-corpus-discovery",
+        ]
+    )
+
+    run_dir = tmp_path / "outputs" / "reconstruction" / "runs" / "phase5-lora-smoke"
+    metadata = json.loads((run_dir / "checkpoint_metadata.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "training_metrics.json").read_text(encoding="utf-8"))
+
+    assert metadata["adapter_type"] == "lora_sft"
+    assert metadata["adapter_is_placeholder"] is False
+    assert metadata["adapter_artifact_path"].endswith("adapter")
+    assert metrics["status"] == "trained_lora_sft"
+    assert metrics["training_metrics"]["artifact_type"] == "lora_sft_adapter"
+
+
 def test_inference_pipeline_refuses_placeholder_adapter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -561,6 +637,12 @@ def test_optional_wandb_logging_records_run_metadata(monkeypatch: pytest.MonkeyP
         max_eval_examples=16,
         learning_rate=5e-5,
         per_device_train_batch_size=1,
+        gradient_accumulation_steps=1,
+        lora_rank=8,
+        lora_alpha=16,
+        lora_dropout=0.0,
+        dtype="bfloat16",
+        gradient_checkpointing=False,
         max_source_length=512,
         max_target_length=512,
     )

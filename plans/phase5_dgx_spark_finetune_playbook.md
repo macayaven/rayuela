@@ -30,6 +30,11 @@ Python environments should not be used for real training, and `pip install torch
 inside the training container is forbidden unless we deliberately rebuild the
 whole lane around a new NVIDIA image.
 
+Earlier Rayuela experiment phases were run in Docker/dev containers, not in a
+host-managed training environment. Preserve that boundary for Phase 5: the host
+may run lightweight repository checks, but all GPU training, adapter generation,
+and dependency probing should happen inside a container.
+
 ## Rayuela Adaptation
 
 Keep Rayuela's existing run contract as the source of truth:
@@ -94,6 +99,9 @@ For QLoRA:
 - Hardware/software mismatch: use `nvcr.io/nvidia/pytorch:25.11-py3` as the
   default playbook image until a newer NVIDIA DGX Spark playbook supersedes it.
   Record any image override in the run manifest or research log.
+- Host/container drift: do not interpret host Python package availability as
+  training readiness. The only valid readiness signal is the NVIDIA container's
+  `nvidia-smi`, `nvcc`, PyTorch CUDA, and dependency probe output.
 - PyTorch replacement: install fine-tuning dependencies under constraints
   generated from the NGC image's existing Torch, CUDA, NCCL, cuDNN, NVIDIA, and
   Triton packages.
@@ -101,6 +109,11 @@ For QLoRA:
   `torch.cuda.is_available()` is not healthy inside the container.
 - Dependency drift: pin the upstream playbook commit in logs and record package
   versions in `training_metrics.json`.
+- Userland package drift: the bootstrap pins the Hugging Face/PEFT/TRL layer
+  instead of installing latest packages. An unpinned install pulled `peft 0.19.1`,
+  which rejected the NGC image's bundled `torchao 0.14.0+git`. The current
+  PyTorch lane pins `transformers==4.57.1`, `peft==0.17.1`, `datasets==4.3.0`,
+  `trl==0.26.1`, `bitsandbytes==0.49.2`, and `hf_transfer==0.1.9`.
 - Gated model downloads: fail early if `HF_TOKEN` is missing for gated models.
 - UMA memory pressure: use small smoke runs first; if memory appears available
   but allocation fails, flush host caches before rerun as NVIDIA recommends.

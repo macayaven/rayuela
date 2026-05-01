@@ -335,6 +335,7 @@ python3 -m pytest tests/test_reconstruction_training.py -q
 python3 src/reconstruction_train.py --run-id phase5-smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
 python3 src/reconstruction_train.py --run-id phase5-contract-smoke --dataset-mode contract_smoke --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
 python3 src/reconstruction_train.py --run-id phase5-seq2seq-smoke --training-mode seq2seq_smoke --dataset-mode contract_smoke --model-id hf-internal-testing/tiny-random-t5 --max-steps 1 --max-train-examples 2 --max-eval-examples 1 --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
+python3 src/reconstruction_train.py --run-id phase5-lora-smoke --training-mode lora_sft --dataset-mode contract_smoke --model-id hf-internal-testing/tiny-random-LlamaForCausalLM --max-steps 1 --max-train-examples 2 --max-source-length 128 --lora-rank 4 --lora-alpha 8 --split-manifest-path outputs/reconstruction/pilots/split_manifest.json --target-envelopes-path outputs/reconstruction/pilots/target_envelopes.json
 ```
 
 Primary outputs:

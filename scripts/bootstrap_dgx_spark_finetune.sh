@@ -19,12 +19,16 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "Rayuela fine-tuning runs are container-only; host Python environments are not used."
+echo "Container image: $IMAGE"
+echo "Lane: $LANE"
+
 mkdir -p "$HF_CACHE"
 
 if [[ "$LANE" == "pytorch" ]]; then
-  INSTALL_COMMAND='pip install --constraint /tmp/rayuela-torch-constraints.txt transformers peft datasets trl bitsandbytes hf_transfer'
+  INSTALL_COMMAND='pip install --constraint /tmp/rayuela-torch-constraints.txt "transformers==4.57.1" "peft==0.17.1" "datasets==4.3.0" "trl==0.26.1" "bitsandbytes==0.49.2" "hf_transfer==0.1.9"'
 else
-  INSTALL_COMMAND='pip install --constraint /tmp/rayuela-torch-constraints.txt transformers peft hf_transfer "datasets==4.3.0" "trl==0.26.1" && pip install --no-deps unsloth unsloth_zoo bitsandbytes'
+  INSTALL_COMMAND='pip install --constraint /tmp/rayuela-torch-constraints.txt "transformers==4.57.1" "peft==0.17.1" "hf_transfer==0.1.9" "datasets==4.3.0" "trl==0.26.1" && pip install --no-deps unsloth unsloth_zoo "bitsandbytes==0.49.2"'
 fi
 
 exec docker run --gpus all --ipc=host \
