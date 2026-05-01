@@ -76,12 +76,16 @@ docker compose build rayuela
 docker compose up rayuela
 docker compose --profile llm up vllm
 docker compose --profile llm-nemotron up vllm-nemotron
+docker compose --profile llm-qwen3-instruct up vllm-qwen3-instruct
 ```
 
 - `rayuela` exposes JupyterLab on port `8888`.
 - `vllm` serves Qwen 3.5 on port `8000`.
 - `vllm-nemotron` serves the Nemotron replication model on port `8000` and should not run at the same time as `vllm`.
+- `vllm-qwen3-instruct` serves Qwen3-30B-A3B-Instruct-2507 on port `8000` for Phase 5 teacher generation. It should not run at the same time as the other vLLM profiles.
 - The tracked Qwen vLLM command includes `--reasoning-parser qwen3`, which keeps Qwen reasoning enabled while separating `reasoning_content` from final `content`.
+  The Qwen3 instruct teacher profile intentionally omits that parser because the
+  selected checkpoint is non-thinking.
 
 For the official DGX Spark Nemotron reasoning lane, use the helper in
 [`src/reconstruction_spark_nemotron.py`](src/reconstruction_spark_nemotron.py)
@@ -349,6 +353,19 @@ Style-transfer adapter work starts by distilling scored Phase 4 teacher
 generations into supervised JSONL examples. The generated passages remain under
 ignored `outputs/`; tracked files only contain the code and plan:
 
+The next teacher-model decision is recorded in
+[`plans/phase5_teacher_model_selection_20260501.md`](plans/phase5_teacher_model_selection_20260501.md).
+The current recommendation is to probe Qwen3-30B-A3B-Instruct-2507 first because
+it is explicitly non-thinking and has a simpler single-workstation serving path,
+then test Mistral Small 4 NVFP4 as the higher-upside comparison teacher once the
+replacement lane is producing scoreable artifacts.
+
+Start the selected teacher endpoint with:
+
+```bash
+docker compose --profile llm-qwen3-instruct up vllm-qwen3-instruct
+```
+
 ```bash
 python3 src/reconstruction_style_distill.py --dataset-id phase5-style-distill --teacher-cases-path outputs/reconstruction/runs/<teacher_run>/prompt_baseline_cases.json --min-weighted-objective 0.14
 python3 src/reconstruction_train.py --run-id phase5-style-distilled-scaffold --dataset-mode style_transfer_distilled --training-dataset-dir outputs/reconstruction/style_distill/phase5-style-distill/training_dataset
@@ -536,6 +553,36 @@ The launcher automatically runs Phase 6 analysis with
 `--schedule-run-selection nonfailed` after the scheduler finishes, so the
 article-facing output should be read from the schedule analysis directory rather
 than reconstructed manually from individual run folders.
+
+## Agentic Teacher Loop
+
+[`src/reconstruction_agentic_loop.py`](src/reconstruction_agentic_loop.py) runs
+the Phase 5 Qwen3 teacher lane as a resumable outer loop. Each cycle checks the
+served model, runs a small Phase 4 teacher batch, distills accumulated scoreable
+teacher cases into a Phase 5 JSONL dataset, advances the case offset, and writes
+append-only event logs under
+`outputs/reconstruction/analysis/agentic_loops/<loop_id>/`.
+
+Launch the current Qwen3 teacher loop in tmux with:
+
+```bash
+scripts/launch_qwen3_teacher_loop.sh
+```
+
+Primary outputs:
+
+- `outputs/reconstruction/analysis/agentic_loops/<loop_id>/events.jsonl`
+- `outputs/reconstruction/analysis/agentic_loops/<loop_id>/loop_state.json`
+- `outputs/reconstruction/analysis/agentic_loops/<loop_id>/latest_summary.json`
+- new `outputs/reconstruction/runs/phase4-qwen3-instruct-loop-*` teacher runs
+- new `outputs/reconstruction/style_distill/phase5-style-distill-qwen3-loop-*`
+  distilled datasets
+
+The loop stops only when the endpoint fails, the served model is not the
+expected Qwen3 instruct checkpoint, a subprocess fails, or a `STOP` file appears
+in the loop directory. It also halts cleanly with a `no_cases_available` event
+when the configured case offset range is exhausted, so it does not spin through
+empty batches.
 
 ## Corpus Extension
 
