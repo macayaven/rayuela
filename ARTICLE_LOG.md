@@ -625,3 +625,16 @@ The linear finding is rock-solid: two independent models agree the sequential pa
 **Result**: The first pass over existing Nemotron teacher artifacts produced only `2` usable unique examples above a loose score threshold. That is useful because it exposes the real bottleneck: we need more and better teacher rewrites before a style adapter can be meaningful.
 
 **For Part 3**: This is a strong methodology beat for the article. The research is not jumping from "train an adapter" to "Cortazar style"; it inserts a measurable teacher-data layer between prompt experiments and fine-tuning.
+
+### 2026-11-06 — Public entry points and contribution guidance
+
+**What changed**: Put the existing interactive analysis first in the README,
+distinguish browsing the results from reproducing the model-backed pipeline,
+and add a contributor guide with small, concrete starting points.
+
+**Reuse**: Prepare Apache-2.0 terms for original Python code, tests and build
+scripts, with a scope notice that preserves existing content rights and excludes
+novels, corpora and third-party assets.
+
+**Research boundary**: No analysis, model run or research result changed. The
+measurements do not establish authorial intent or literary quality.
