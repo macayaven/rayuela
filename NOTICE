@@ -1,0 +1,14 @@
+Project Rayuela
+Copyright 2026 Carlos Crespo Macaya
+
+The Apache License 2.0 in LICENSE applies to original Python source, tests and
+build scripts in this repository. Contributors retain copyright in their own
+contributions.
+
+The grant does not cover source novels or other corpora, third-party assets,
+model weights or dependencies. Their owners' rights and licenses remain in force.
+Documentation, articles, research figures and quoted excerpts retain their
+existing rights unless the relevant file states otherwise.
+
+Generated visualization pages may contain third-party libraries and notices.
+Preserve those notices; no ownership of those libraries is claimed.

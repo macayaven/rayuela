@@ -7,9 +7,24 @@
 [![Coverage Threshold](https://img.shields.io/badge/coverage%20threshold-85%25-brightgreen)](./pyproject.toml)
 [![Docstring Threshold](https://img.shields.io/badge/docstrings-85%25%2B-blue)](./pyproject.toml)
 
-Project Rayuela is a computational literary analysis of Julio Cortazar's *Rayuela*. The repository contains the full workflow behind the project: text cleanup, embeddings, classical stylometrics, LLM-based style and semantic scoring, permutation tests, interactive visualizations, and article assets for a two-part series.
+What changes when you read the same novel in a different order? Project Rayuela
+compares the two reading paths through Julio Cortázar's *Rayuela* using
+embeddings, classical stylometrics, LLM-based scoring and permutation tests.
 
-This workspace is already well past the planning stage. The analysis code and article source markdown are versioned here, while raw corpus files, derived outputs, and generated publishing assets stay local-only so the repo carries reproducible code rather than copyrighted or heavyweight artifacts.
+**[Explore the interactive analysis](https://carloscrespomacaya.com/rayuela/)**
+· [Read the findings](https://medium.com/towards-artificial-intelligence/what-does-a-novel-look-like-from-the-inside-8ed9f9a26fd6)
+· [Read the methodology](https://medium.com/towards-artificial-intelligence/how-do-you-teach-a-machine-to-read-like-a-critic-fbfe24de4deb)
+· [Contribute or report a problem](CONTRIBUTING.md)
+
+Start with the published plots and articles; reading them requires no GPU,
+model endpoint or local corpus. They show where the four representations agree
+and where the result depends on the measurement. The analysis does not establish
+Cortázar's intentions or the novel's literary quality.
+
+To reproduce the pipeline, use the [environment](#environment) and
+[quick start](#quick-start) below, with a corpus you are authorized to use.
+The repository contains analysis code and article sources. Raw texts and most
+derived outputs stay local; the browser figures are published separately.
 
 ## Current State
 
@@ -27,6 +42,9 @@ This workspace is already well past the planning stage. The analysis code and ar
 - The gap between holistic coherence and explicit semantic disorder is the central interpretive result of the current article series.
 
 ## Where To Look First
+
+- [Interactive plots](https://carloscrespomacaya.com/rayuela/): explore the published
+  figures before setting up the full analysis environment.
 
 - [`ARTICLE_PART1_MEDIUM.md`](ARTICLE_PART1_MEDIUM.md): current source for the Part 1 article.
 - [`ARTICLE_PART2_MEDIUM.md`](ARTICLE_PART2_MEDIUM.md): current source for the Part 2 article.
@@ -51,6 +69,19 @@ This workspace is already well past the planning stage. The analysis code and ar
 - `docs/` remains versioned because the current custom-domain GitHub Pages site publishes from `main:/docs`.
 - Keep copyrighted corpus material and regenerated publishing bundles in your own local storage.
 - Use the source markdown and the helper scripts in this repo to regenerate local artifacts when needed.
+
+## Contributing and reuse
+
+Setup reports, clearer figure labels, documentation fixes and reproducibility
+checks are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for useful first tasks
+and verification commands. If you find the project useful, a GitHub star is
+appreciated.
+
+Original Python source, tests and build scripts are offered under
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for the scope. This grant does
+not cover the novels or other source corpora, third-party assets or dependencies.
+Documentation, articles, figures and quoted excerpts retain their existing rights
+unless a file states otherwise. No permission to redistribute the novel is granted.
 
 ## Workspace Notes
 
